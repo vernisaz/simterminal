@@ -36,6 +36,7 @@ fn main() {
 ```
 3. Client part should include *terminal.js*, and then use a code like:
 ```JavaScript
+const WIN_SERVER = true
 function openTerminal() {
     const dirInputLeft = document.getElementById(`left-dir`);
     const actPanel = dirInputLeft.classList.contains('selected-panel')?'left':'right';
@@ -55,6 +56,10 @@ function openTerminal() {
     document.title = 'Terminal'
     WS_TERM_URL = `${WS_TERM_URL_BASE}?cwd=${encodeURIComponent(dir)}`
     ws_term_connect()
+}
+function closeTerminal() { // optionally add it for 'exit' command processing
+    ws_term_close()
+    // ... some other actions
 }
 ```
 4. Add CSS
