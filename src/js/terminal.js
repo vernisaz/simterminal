@@ -301,24 +301,25 @@ function sendCommand(cmd) {
     case 'Enter':
          if (termWskt && termWskt.readyState===WebSocket.OPEN) {
            if (cmd.textContent && cmd.textContent != '\xa0') {
-               if (cmd.textContent.trim() == 'clear' || WIN_SERVER && cmd.textContent.trim() == 'cls') { // 'reset'
-                   clearScreen()
-               } else {
-                    let inputStr = cmd.textContent.trim()
-                    if (inputStr.startsWith('\xa0'))
-                        inputStr = inputStr.substring(1)
-                    if (inputStr.endsWith('\xa0'))
-                        inputStr = inputStr.substring(0, inputStr.length-1)
-                     
+                let inputStr = cmd.textContent.trim()
+                if (inputStr.startsWith('\xa0'))
+                    inputStr = inputStr.substring(1)
+                if (inputStr.endsWith('\xa0'))
+                    inputStr = inputStr.substring(0, inputStr.length-1)
+                if (inputStr == 'clear' || WIN_SERVER && inputStr == 'cls') { // 'reset'
+                    clearScreen()
+                } else if (inputStr == 'exit' && typeof closeTerminal === 'function') {
+                    closeTerminal()
+                } else { 
                     termWskt.send(inputStr+'\n')
-               }
+                }
                const commIdx = commandBuffer.indexOf(cmd.textContent)
                if (commIdx < 0)
                     commandBuffer.push(cmd.textContent)
                else
                     cmdBufPos = commIdx
 		   } else
-		  	sendEnter()
+		  	 sendEnter()
 		  cmd.textContent = '\xa0'
 		  event.preventDefault()
 	   } else {
