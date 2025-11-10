@@ -86,7 +86,7 @@ function closeTerminal() { // optionally add it for 'exit' command processing
    "WS-CGI": true,
    "translated": "./bin/cmdterm"}
 ```
-Actual mapping values will depend on your desired settings.
+`cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your desired settings.
 
 
 ## How build the crate
