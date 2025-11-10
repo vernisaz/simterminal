@@ -57,7 +57,22 @@ function openTerminal() {
     ws_term_connect()
 }
 ```
-4. The following JSON code snippet has to be added in [SimHTTP](https://github.com/vernisaz/simhttp) configuration:
+4. Add CSS
+```CSS
+#terminal {
+    color: #0e131f;
+    font-family: monospace; 
+    padding-top:2px;
+    padding-bottom: 1em;
+    overflow: auto; 
+    width: fit-content;
+}
+
+#terminal pre {
+    display: inline;
+}
+```
+5. The following JSON code snippet has to be added in [SimHTTP](https://github.com/vernisaz/simhttp) [configuration](https://github.com/vernisaz/simhttp/blob/master/env.conf):
 ```JSON
 {"path":"/cmd/js",
    "translated": "./html/js"},
@@ -67,6 +82,7 @@ function openTerminal() {
    "translated": "./bin/cmdterm"}
 ```
 Actual mapping values will depend on your desired settings.
+
 
 ## How build the crate
 Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate will be stored in *../crates* directory.
