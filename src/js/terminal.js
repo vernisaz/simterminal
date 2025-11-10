@@ -287,6 +287,10 @@ function ws_term_connect() {
      }
 }
 
+function ws_term_close() {
+    termWskt.close()
+}
+
 function appendContent(term,el) {
     const lastChild = term.lastElementChild;
     term.insertBefore(el, lastChild);
