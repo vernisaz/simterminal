@@ -7,7 +7,7 @@ crate_src=src${~/~}rust
 test file=test
 common =..${~/~}simscript${~/~}comm-crate.7b:file
 common_test =..${~/~}simscript${~/~}comm-test.7b:file
-crate_dir=../rusthub/src/rust${~/~}crates
+crate_dir=..${~/~}crates
 
 version=1.01b01
 set_env(VERSION,version)
