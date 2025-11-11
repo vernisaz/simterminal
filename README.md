@@ -80,13 +80,13 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
     z-index:998;
 }
 
-div#terminal {
+.scroll-up > div {
     padding: 1em;
     color: #0e131f;
     font-family: monospace; 
 }
 
-#terminal pre {
+.scroll-up > div pre {
     display: inline;
 }
 ```
