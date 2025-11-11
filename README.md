@@ -40,10 +40,13 @@ const WIN_SERVER = true
 function openTerminal() {
     const dirInputLeft = document.getElementById(`left-dir`);
     const actPanel = dirInputLeft.classList.contains('selected-panel')?'left':'right';
+    const dir = document.getElementById(`${actPanel}-dir`).value
+    const container = document.createElement('DIV');
+    container.id = 'terminal-container'
+    container.className = 'scroll-up'
     const div = document.createElement('DIV');
     div.id = "terminal"
     div.tabindex = 0
-    const dir = document.getElementById(`${actPanel}-dir`).value
     const code = document.createElement('CODE')
     code.contentEditable = true
     code.id = 'commandarea'
@@ -51,26 +54,36 @@ function openTerminal() {
     code.addEventListener('keydown', function() { sendCommand(code) })
     code.textContent = '\xa0'
     div.appendChild(code)
-    document.body.appendChild(div)
+    container.appendChild(div)
+    document.body.appendChild(container)
     code.focus()
     document.title = 'Terminal'
     WS_TERM_URL = `${WS_TERM_URL_BASE}?cwd=${encodeURIComponent(dir)}`
     ws_term_connect()
 }
-function closeTerminal() { // optionally add it for 'exit' command processing
+function closeTerminal() { // optionally, add it for 'exit' like command processing
     ws_term_close()
     // ... some other actions
 }
 ```
 4. Add CSS
 ```CSS
-#terminal {
+.scroll-up {
+    opacity:0.9;
+    background-color:#ddd;
+    position:fixed;
+    width:100%;
+    height:100%;
+    top:0px;
+    left:0px;
+    overflow:auto;
+    z-index:998;
+}
+
+div#terminal {
+    padding: 1em;
     color: #0e131f;
     font-family: monospace; 
-    padding-top:2px;
-    padding-bottom: 1em;
-    overflow: auto; 
-    width: fit-content;
 }
 
 #terminal pre {
