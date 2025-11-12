@@ -309,6 +309,7 @@ function sendCommand(cmd) {
                 if (inputStr == 'clear' || WIN_SERVER && inputStr == 'cls') { // 'reset'
                     clearScreen()
                 } else if (inputStr == 'exit' && typeof closeTerminal === 'function') {
+                    cmd.textContent='\xa0'
                     closeTerminal()
                 } else { 
                     termWskt.send(inputStr+'\n')
