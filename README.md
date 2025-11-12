@@ -105,3 +105,7 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 ## How build the crate
 Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate will be stored in *../crates* directory.
 You can also use Cargo.
+
+## Where it is used
+[Simple commander](https://github.com/vernisaz/simcom) file manager.
+
