@@ -1193,13 +1193,12 @@ fn interpolate_env(s:String) -> String {
     res
 }
 
-fn extend_name(arg: &impl AsRef<str>, cwd: &PathBuf, exe: bool) -> String {
+fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     let entered = unescape(arg);
     let mut path = //PathBuf::from(&entered);
         if entered.starts_with('~') { // '~, "~, \~ - no expansion
-            let env_value = env::home_dir();
-            if env_value.is_some() {
-                let res = PathBuf::from(env_value.unwrap().display().to_string());
+            if let Some(env_value) = env::home_dir() {
+                let res = PathBuf::from(env_value.display().to_string());
                 if entered.len() > 1 {
                     res.join(&entered[2..])
                 } else {
@@ -1218,13 +1217,13 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &PathBuf, exe: bool) -> String {
         if path.is_relative( ) {
             //eprintln!("popped path {:?}", &path);
             if path.as_os_str().is_empty() { // join with an empty PathBuf actually add slash because behaves as empty file_name 
-                 dir = cwd.clone();
+                 dir = cwd.to_path_buf();
             } else {dir = cwd.join(path);}
         } else {
             dir = path;
         }
     } else {
-        dir = cwd.clone();
+        dir = cwd.to_path_buf();
     }
     //eprintln!("entered: {cwd:?} {dir:?} {part_name:?}");
     let files: Vec<String> =
