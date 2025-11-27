@@ -1,4 +1,4 @@
-/// terminal web socket CGI
+//! terminal web socket CGI
 
 macro_rules! send {
     ($($arg:tt)*) => (
@@ -185,7 +185,7 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
                         continue
                     };
                     
-                    let mut dir = String::from(format!("    Directory: {}\n\n", dir.display()));
+                    let mut dir = format!("    Directory: {}\n\n", dir.display());
                     if !names_only {
                         dir.push_str("Mode                 LastWriteTime         Length Name\n");
                         dir.push_str("----                 -------------         ------ ----\n");
@@ -519,11 +519,10 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
                     loop {
                         let Ok(len) = stdin.read(&mut buffer) else {break};
                         if len == 0 {break};
-                        if len == 1 && buffer[0] == 3 {
-                            if for_kill.lock().unwrap().kill().is_ok() {
-                                send!("^C");
-                                break
-                            }
+                        if len == 1 && buffer[0] == 3 
+                            && for_kill.lock().unwrap().kill().is_ok() {
+                            send!("^C");
+                            break
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
@@ -608,11 +607,9 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
                     loop {
                         let Ok(len) = stdin.read(&mut buffer) else {break};
                         if len == 0 {break};
-                        if len == 1 && buffer[0] == 3 {
-                            if for_kill.lock().unwrap().kill().is_ok() {
-                                send!("^C");
-                                break
-                            }
+                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
+                            send!("^C");
+                            break
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
@@ -649,7 +646,7 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
 }
 
 
-fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filtered_env: &HashMap<String, String>) -> io::Result<Vec<u8>> {
+fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_env: &HashMap<String, String>) -> io::Result<Vec<u8>> {
     let mut process = 
         if cmd.len() > 1 {
                 Command::new(&cmd[0])
@@ -699,7 +696,7 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filter
     Ok(handle.join().unwrap())
 }
 
-fn call_process_async(cmd: &Vec<String>, cwd: &PathBuf, filtered_env: &HashMap<String, String>) -> io::Result<u32> {
+fn call_process_async(cmd: &[String], cwd: &PathBuf, filtered_env: &HashMap<String, String>) -> io::Result<u32> {
     let mut binding = Command::new(&cmd[0]);
     let mut command = binding
              .stdout(std::process::Stdio::null())
@@ -958,7 +955,7 @@ fn interpolate_env(s:String) -> String {
                         state = EnvExpState:: ExpEnvName,
                     EnvExpState::Esc => { state = EnvExpState::InArg; res.push(c) },
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         state = EnvExpState::ExpEnvName
@@ -1019,9 +1016,8 @@ fn interpolate_env(s:String) -> String {
             '~' => {
                 match state {
                     EnvExpState::TildeCan => { // expansion can consider another user name after but not implemented yet
-                        let env_value = env::home_dir();
-                        if env_value.is_some() {
-                            res.push_str(&env_value.unwrap().display().to_string())
+                        if let Some(env_value) = env::home_dir() {
+                            res.push_str(&env_value.display().to_string())
                         }
                         state = EnvExpState::InArg
                     }
@@ -1033,9 +1029,8 @@ fn interpolate_env(s:String) -> String {
                         let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
-                        let env_value = env::home_dir();
-                        if env_value.is_some() {
-                            res.push_str(&env_value.unwrap().display().to_string())
+                        if let Some(env_value) = env::home_dir() {
+                            res.push_str(&env_value.display().to_string())
                         }
                         state = EnvExpState::InArg
                     }
@@ -1459,7 +1454,7 @@ impl DeferData {
         }
     }
     
-    fn from_to(from:&PathBuf, to:&PathBuf) -> Self {
+    fn from_to(from:&Path, to:&Path) -> Self {
         let mut res = DeferData::from(from);
         let mut to_name = to.file_name().unwrap().to_str().unwrap().to_string();
         let mut to_dir = if to.is_dir() {
@@ -1507,10 +1502,9 @@ impl DeferData {
                     succ_count += 1
                 },
                 Op::DEL => {
-                    if file.is_file() && fs::remove_file(&file).is_ok() {
+                    if file.is_file() && fs::remove_file(&file).is_ok()
+                      || file.is_dir() && fs::remove_dir_all(&file).is_ok() {
                            succ_count += 1 
-                    } else if file.is_dir() && fs::remove_dir_all(&file).is_ok() {
-                        succ_count += 1
                     }
                 }
                 Op::CPY => {
