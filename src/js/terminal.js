@@ -105,7 +105,6 @@ function ws_term_connect() {
             for (var ans of ansi_esc) {
                 // procceed ANSI code
                 shift = 0
-                //if (false && wasEsc) {
                 if (wasEsc) {
                 do {
                     if (ans.charAt(shift) == '0' || ans.charAt(shift) == 'm') { // reset
@@ -231,15 +230,14 @@ function ws_term_connect() {
                             ansi_html += 'opacity: 0.0;'
                         ansi_html += '">' + htmlEncode(ans.substring(shift>0?shift + 1:0)) +'</span>'
                     } else {
+                        // TODO add customization to find URLs and other clickable elements
                         var fileNameReg
                         if (WIN_SERVER)
                             fileNameReg =  /(?<path>(\w:\\)?((\w+|\.\.)\\)*)(?<file>\w+\.(rs|swift)):(?<line>\d+):(?<col>\d+)/gm
                         else
                             fileNameReg = /(?<path>\/?((\w+|\.\.)\/)*)(?<file>\w+\.(rs|swift)):(?<line>\d+):(?<col>\d+)/gm // TODO introduce path
                         const lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
-                       // const matches = lineStr.matchAll(fileNameReg); 
                         const matches = Array.from(lineStr.matchAll(fileNameReg)); // [...matchAll]
-                       //if (false) {
                         if (matches.length > 0) {
                             const file = matches[0].groups.file;
                             const line = matches[0].groups.line;
@@ -250,6 +248,8 @@ function ws_term_connect() {
                             path = path.replaceAll('\\', '/')
                             ansi_html += `<a href="javascript:moveToLineInFile('${path}${file}',${line},${col})">${lineStr}</a>`
                         } else {
+                             // https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)
+                           
                            ansi_html += lineStr //htmlEncode(ans.substring(shift>0?shift + 1:0))
                         }
                     }
