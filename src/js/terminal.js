@@ -105,7 +105,6 @@ function ws_term_connect() {
             for (var ans of ansi_esc) {
                 // procceed ANSI code
                 shift = 0
-                //if (false && wasEsc) {
                 if (wasEsc) {
                 do {
                     if (ans.charAt(shift) == '0' || ans.charAt(shift) == 'm') { // reset
@@ -231,27 +230,11 @@ function ws_term_connect() {
                             ansi_html += 'opacity: 0.0;'
                         ansi_html += '">' + htmlEncode(ans.substring(shift>0?shift + 1:0)) +'</span>'
                     } else {
-                        var fileNameReg
-                        if (WIN_SERVER)
-                            fileNameReg =  /(?<path>(\w:\\)?((\w+|\.\.)\\)*)(?<file>\w+\.(rs|swift)):(?<line>\d+):(?<col>\d+)/gm
-                        else
-                            fileNameReg = /(?<path>\/?((\w+|\.\.)\/)*)(?<file>\w+\.(rs|swift)):(?<line>\d+):(?<col>\d+)/gm // TODO introduce path
-                        const lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
-                       // const matches = lineStr.matchAll(fileNameReg); 
-                        const matches = Array.from(lineStr.matchAll(fileNameReg)); // [...matchAll]
-                       //if (false) {
-                        if (matches.length > 0) {
-                            const file = matches[0].groups.file;
-                            const line = matches[0].groups.line;
-                            const col = matches[0].groups.col;
-                            var path = matches[0].groups.path
-                            if (path.startsWith('/') || path.indexOf(':\\') == 1) // current OS root
-                                path = path.substring(HOME_LEN + PROJECT_HOME.length+1)
-                            path = path.replaceAll('\\', '/')
-                            ansi_html += `<a href="javascript:moveToLineInFile('${path}${file}',${line},${col})">${lineStr}</a>`
-                        } else {
-                           ansi_html += lineStr //htmlEncode(ans.substring(shift>0?shift + 1:0))
-                        }
+                        var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
+                        if (typeof extendURL === 'function') {
+                            lineStr = extendURL(lineStr);
+                        } 
+                        ansi_html += lineStr
                     }
                 } else {
                     if (ans.charAt(shift) == 'm')
@@ -263,8 +246,13 @@ function ws_term_connect() {
             }
             //console.log(ansi_html) // debug
             term_frag.innerHTML = ansi_html
-        } else
-            term_frag.innerHTML = htmlEncode(chunk)
+        } else {
+            var lineStr = htmlEncode(chunk)
+            if (typeof extendURL === 'function') {
+                lineStr = extendURL(lineStr);
+            } 
+            term_frag.innerHTML = lineStr
+        }
         //cons.appendChild(term_frag)
         appendContent(cons,term_frag)
         if (!noPrompt) {
@@ -309,6 +297,7 @@ function sendCommand(cmd) {
                 if (inputStr == 'clear' || WIN_SERVER && inputStr == 'cls') { // 'reset'
                     clearScreen()
                 } else if (inputStr == 'exit' && typeof closeTerminal === 'function') {
+                    cmd.textContent='\xa0'
                     closeTerminal()
                 } else { 
                     termWskt.send(inputStr+'\n')

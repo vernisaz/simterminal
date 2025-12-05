@@ -100,8 +100,40 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
    "translated": "./bin/cmdterm"}
 ```
 `cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your desired settings.
-
+6. Customize terminal output by adding clickable links
+Sometimes a terminal output cab contain URLs and other clickable elements as references to source with line numbers. Such
+elements can be wrapped in clickable links in the terminal output. Define function `extendURL` with a string parameter
+returning also a string with possible URLs, for example:
+```JavaScript
+var fileNameReg
+if (WIN_SERVER)
+    fileNameReg =  /(?<path>(\w:\\)?((\w+|\.\.?)\\)*)(?<file>\w+\.(rs|swift|java)):(?<line>\d+):(?<col>\d+|\s)/gm
+else
+    fileNameReg = /(?<path>\/?((\w+|\.\.?)\/)*)(?<file>\w+\.(rs|swift|java)):(?<line>\d+):(?<col>\d+|\s)/gm
+function extendURL(lineStr) {
+    return lineStr.replaceAll(fileNameReg, (match) => {
+        const matchGroup = [...match.matchAll(fileNameReg)]
+        const file = matchGroup[0].groups.file;
+        const line = matchGroup[0].groups.line;
+        const col = matchGroup[0].groups.col;
+        var path = matchGroup[0].groups.path
+        path = path.replaceAll('\\', '/')
+        return `<a href="javascript:moveToLineInFile('${path}${file}',${line},${col})">${match}</a>`
+    });
+}
+```
+Optionally add CSS to avoid colorizing links:
+```CSS
+span+a,pre a {
+  color: inherit;
+  text-decoration: inherit;
+}
+```
 
 ## How build the crate
 Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate will be stored in *../crates* directory.
 You can also use Cargo.
+
+## Where it is used
+[Simple commander](https://github.com/vernisaz/simcom) file manager.
+

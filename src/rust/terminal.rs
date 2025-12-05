@@ -1,4 +1,4 @@
-/// terminal web socket CGI
+//! terminal web socket CGI
 
 macro_rules! send {
     ($($arg:tt)*) => (
@@ -36,7 +36,7 @@ pub trait Terminal {
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
-    fn persist_cwd(&self, _cwd: &PathBuf) {
+    fn persist_cwd(&self, _cwd: &Path) {
         
     }
     fn main_loop(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -92,7 +92,7 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
     send!("\nOS terminal {ver}\n") ;// {ver:?} {project} {session}");
 
     send!("{}\u{000C}", cwd.as_path().display());
-    let child_env: HashMap<String, String> = env::vars().filter(|&(ref k, _)|
+    let child_env: HashMap<String, String> = env::vars().filter(|(k, _)|
              k != "GATEWAY_INTERFACE"
              && k != "QUERY_STRING"
              && k != "REMOTE_ADDR"
@@ -130,9 +130,9 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
             send!("^C\n");
             continue
         }
-        let line = String::from_utf8_lossy(&vec_buf).into_owned();
+        let line = String::from_utf8_lossy(vec_buf).into_owned();
         prev = None;
-        let expand = line.chars().last() == Some('\t');
+        let expand = line.ends_with('\t');
         let (mut cmd, piped, in_file, out_file, appnd, bkgr) = parse_cmd(&line.trim());
         if cmd.is_empty() { continue };
         if expand {
@@ -156,10 +156,8 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
                         beg.push('>');
                     }
                     beg.push('>');
-                } else {
-                    if !in_file.is_empty() {
-                        beg.push('<');
-                    }
+                } else if !in_file.is_empty() {
+                    beg.push('<');
                 }
             } 
             //eprintln!("line to send {} {ext}", beg);
@@ -167,7 +165,7 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
             continue
         }
         send!("{line}"); // \n is coming as part of command
-        cmd = cmd.into_iter().map(|el| interpolate_env(el)).collect();
+        cmd = cmd.into_iter().map(interpolate_env).collect();
         match cmd[0].as_str() {
             "dir" if cfg!(windows) => {
                 let names_only =  cmd.len() > 1 && cmd[1] == "/b";
@@ -187,7 +185,7 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
                         continue
                     };
                     
-                    let mut dir = String::from(format!("    Directory: {}\n\n", dir.display()));
+                    let mut dir = format!("    Directory: {}\n\n", dir.display());
                     if !names_only {
                         dir.push_str("Mode                 LastWriteTime         Length Name\n");
                         dir.push_str("----                 -------------         ------ ----\n");
@@ -443,7 +441,7 @@ fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::
                     // piping work
                     let mut res = vec![];
                     for mut pipe_cmd in piped {
-                        pipe_cmd = pipe_cmd.into_iter().map(|el| interpolate_env(el)).collect();
+                        pipe_cmd = pipe_cmd.into_iter().map(interpolate_env).collect();
                         pipe_cmd = expand_wildcard(&cwd, pipe_cmd);
                         pipe_cmd = expand_alias(&aliases, pipe_cmd);
                         match call_process_piped(pipe_cmd.clone(), &cwd, &res, &child_env) {
@@ -484,7 +482,7 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
              .stderr(Stdio::piped())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd).spawn()
+             .current_dir(cwd).spawn()
          } else {
             Command::new(&cmd[0])
              .stdout(Stdio::piped())
@@ -492,16 +490,16 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
              .stderr(Stdio::piped())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd).spawn()
+             .current_dir(cwd).spawn()
         };
     let mut res : Option<Vec<u8>> = None;
     match process {
         Ok(mut process) => {
         // TODO consider
         // let (mut recv, send) = std::io::pipe()?;
-            let Some(mut stdout) = process.stdout.take() else {return None};
-            let Some(mut stdin_child) = process.stdin.take()  else {return None};
-            let Some(stderr) = process.stderr.take() else {return None};
+            let mut stdout = process.stdout.take()?;
+            let mut stdin_child = process.stdin.take()?;
+            let stderr = process.stderr.take()?;
             let share_process = Arc::new(Mutex::new(process));
             let for_kill = Arc::clone(&share_process);
             let for_wait = Arc::clone(&share_process);
@@ -521,11 +519,10 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
                     loop {
                         let Ok(len) = stdin.read(&mut buffer) else {break};
                         if len == 0 {break};
-                        if len == 1 && buffer[0] == 3 {
-                            if for_kill.lock().unwrap().kill().is_ok() {
-                                send!("^C");
-                                break
-                            }
+                        if len == 1 && buffer[0] == 3 
+                            && for_kill.lock().unwrap().kill().is_ok() {
+                            send!("^C");
+                            break
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
@@ -575,7 +572,7 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
              .stderr(Stdio::piped())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd).spawn()
+             .current_dir(cwd).spawn()
          } else {
             Command::new(&cmd[0])
              .stdout(Stdio::piped())
@@ -583,14 +580,14 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
              .stderr(Stdio::piped())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd).spawn()
+             .current_dir(cwd).spawn()
         };
     let mut res : Option<Vec<u8>> = None;
     match process {
         Ok(mut process) => {
-            let Some(mut stdout) = process.stdout.take() else {return None};
-            let Some(mut stdin_child) = process.stdin.take()  else {return None};
-            let Some(stderr) = process.stderr.take() else {return None};
+            let mut stdout = process.stdout.take()?;
+            let mut stdin_child = process.stdin.take()?;
+            let stderr = process.stderr.take()?;
             let share_process = Arc::new(Mutex::new(process));
             let for_kill = Arc::clone(&share_process);
             let for_wait = Arc::clone(&share_process);
@@ -610,11 +607,9 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
                     loop {
                         let Ok(len) = stdin.read(&mut buffer) else {break};
                         if len == 0 {break};
-                        if len == 1 && buffer[0] == 3 {
-                            if for_kill.lock().unwrap().kill().is_ok() {
-                                send!("^C");
-                                break
-                            }
+                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
+                            send!("^C");
+                            break
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
@@ -651,7 +646,7 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
 }
 
 
-fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filtered_env: &HashMap<String, String>) -> io::Result<Vec<u8>> {
+fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_env: &HashMap<String, String>) -> io::Result<Vec<u8>> {
     let mut process = 
         if cmd.len() > 1 {
                 Command::new(&cmd[0])
@@ -661,7 +656,7 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filter
              .stderr(Stdio::piped())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd).spawn()?
+             .current_dir(cwd).spawn()?
          } else {
             Command::new(&cmd[0])
              .stdout(Stdio::piped())
@@ -669,7 +664,7 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filter
              .stderr(Stdio::piped())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd).spawn()?
+             .current_dir(cwd).spawn()?
         };
     let mut stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
@@ -693,7 +688,7 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filter
         }
     });
 
-    if stdin_child.write_all(&in_pipe) .is_ok() {
+    if stdin_child.write_all(in_pipe) .is_ok() {
         stdin_child.flush().unwrap()
     }
     drop(stdin_child);
@@ -701,7 +696,7 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &Vec<u8>, filter
     Ok(handle.join().unwrap())
 }
 
-fn call_process_async(cmd: &Vec<String>, cwd: &PathBuf, filtered_env: &HashMap<String, String>) -> io::Result<u32> {
+fn call_process_async(cmd: &[String], cwd: &PathBuf, filtered_env: &HashMap<String, String>) -> io::Result<u32> {
     let mut binding = Command::new(&cmd[0]);
     let mut command = binding
              .stdout(std::process::Stdio::null())
@@ -709,7 +704,7 @@ fn call_process_async(cmd: &Vec<String>, cwd: &PathBuf, filtered_env: &HashMap<S
              .stderr(std::process::Stdio::null())
              .env_clear()
              .envs(filtered_env)
-             .current_dir(&cwd);
+             .current_dir(cwd);
     if cmd.len() > 1 {
         command = command.args(&cmd[1..])
     }  ;    
@@ -964,7 +959,7 @@ fn interpolate_env(s:String) -> String {
                         state = EnvExpState:: ExpEnvName,
                     EnvExpState::Esc => { state = EnvExpState::InArg; res.push(c) },
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         state = EnvExpState::ExpEnvName
@@ -987,7 +982,7 @@ fn interpolate_env(s:String) -> String {
                         state =  EnvExpState::InArg
                     }
                     EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         state = EnvExpState::Esc
@@ -1025,9 +1020,8 @@ fn interpolate_env(s:String) -> String {
             '~' => {
                 match state {
                     EnvExpState::TildeCan => { // expansion can consider another user name after but not implemented yet
-                        let env_value = env::home_dir();
-                        if env_value.is_some() {
-                            res.push_str(&env_value.unwrap().display().to_string())
+                        if let Some(env_value) = env::home_dir() {
+                            res.push_str(&env_value.display().to_string())
                         }
                         state = EnvExpState::InArg
                     }
@@ -1036,12 +1030,11 @@ fn interpolate_env(s:String) -> String {
                         res.push(c); state =  EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
-                        let env_value = env::home_dir();
-                        if env_value.is_some() {
-                            res.push_str(&env_value.unwrap().display().to_string())
+                        if let Some(env_value) = env::home_dir() {
+                            res.push_str(&env_value.display().to_string())
                         }
                         state = EnvExpState::InArg
                     }
@@ -1069,7 +1062,7 @@ fn interpolate_env(s:String) -> String {
                         res.push(c); state =  EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         res.push(c);
@@ -1102,14 +1095,14 @@ fn interpolate_env(s:String) -> String {
                         res.push(c); state =  EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         res.push(c);
                         state = EnvExpState::InArg
                     }
                     EnvExpState::InBracketEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         state = EnvExpState::InArg
@@ -1154,7 +1147,7 @@ fn interpolate_env(s:String) -> String {
                         res.push(c); state =  EnvExpState::NoInterpol
                     }
                     EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         res.push(c);
@@ -1197,20 +1190,19 @@ fn interpolate_env(s:String) -> String {
         EnvExpState::Esc | EnvExpState::EscNoInterpol => { res.push('\\');
         }
         EnvExpState::InEnvName => {
-            let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+            let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                 Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
         }
     }
     res
 }
 
-fn extend_name(arg: &impl AsRef<str>, cwd: &PathBuf, exe: bool) -> String {
+fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     let entered = unescape(arg);
     let mut path = //PathBuf::from(&entered);
         if entered.starts_with('~') { // '~, "~, \~ - no expansion
-            let env_value = env::home_dir();
-            if env_value.is_some() {
-                let res = PathBuf::from(env_value.unwrap().display().to_string());
+            if let Some(env_value) = env::home_dir() {
+                let res = PathBuf::from(env_value.display().to_string());
                 if entered.len() > 1 {
                     res.join(&entered[2..])
                 } else {
@@ -1229,13 +1221,13 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &PathBuf, exe: bool) -> String {
         if path.is_relative( ) {
             //eprintln!("popped path {:?}", &path);
             if path.as_os_str().is_empty() { // join with an empty PathBuf actually add slash because behaves as empty file_name 
-                 dir = cwd.clone();
+                 dir = cwd.to_path_buf();
             } else {dir = cwd.join(path);}
         } else {
             dir = path;
         }
     } else {
-        dir = cwd.clone();
+        dir = cwd.to_path_buf();
     }
     //eprintln!("entered: {cwd:?} {dir:?} {part_name:?}");
     let files: Vec<String> =
@@ -1287,10 +1279,10 @@ fn longest_common_prefix(strs: Vec<String>) -> String {
 }
 
 fn remove_redundant_components(path: &PathBuf) -> PathBuf {
-    let mut components = path.components().peekable();
+    let components = path.components().peekable();
     let mut result = PathBuf::new();
 
-    while let Some(component) = components.next() {
+    for component in components {
         match component {
             Component::CurDir => continue,
             Component::ParentDir => {
@@ -1330,11 +1322,11 @@ let mut res = String::new();
 }
 
 fn split_at_star(line: &impl AsRef<str>) -> Option<(String,String)> {
-    let mut char_indices = line.as_ref().char_indices();
+    let char_indices = line.as_ref().char_indices();
     let mut state = Default::default();
     let mut current = String::new();
     let mut before = None;
-    while let Some((_,c)) = char_indices.next() {
+    for (_,c) in char_indices {
         match c { 
             '\\' => match state {
                 CmdState::Esc | CmdState::QEsc => current.push(c),
@@ -1405,9 +1397,9 @@ struct DeferData {
 	    // not for the Rust version
 	    //defer_op: Option<Op>,
 }
-
+use std::path::Path;
 impl DeferData {
-    fn from(from:&PathBuf) -> DeferData {
+    fn from(from:&Path) -> DeferData {
         let from_name = from.file_name().unwrap().to_str().unwrap().to_string();
         let from_dir = from.parent().unwrap_or(&PathBuf::from("")).to_path_buf();
         //let mut src_wild = Vec::new();
@@ -1437,7 +1429,7 @@ impl DeferData {
                           from_dir.read_dir().unwrap()
                           .filter(|r| r.is_ok())
                           .map(|r| r.unwrap().path().file_name().unwrap().to_str().unwrap().to_string())
-                          .filter(|r| r.starts_with(&before))
+                          .filter(|r| r.starts_with(before))
                           .map(|r| r.strip_prefix(before).unwrap().to_string())
                           .collect::<Vec<String>>()
                     }
@@ -1445,7 +1437,7 @@ impl DeferData {
                           from_dir.read_dir().unwrap()
                           .filter(|r| r.is_ok())
                           .map(|r| r.unwrap().path().file_name().unwrap().to_str().unwrap().to_string())
-                          .filter(|r| r.starts_with(&before) && r.ends_with(&after) && r.len() > before.len() + after.len())
+                          .filter(|r| r.starts_with(before) && r.ends_with(&after) && r.len() > before.len() + after.len())
                           .map(|r| r.strip_suffix(after).unwrap().strip_prefix(before).unwrap().to_string())
                           .collect::<Vec<String>>()
                     }
@@ -1455,9 +1447,9 @@ impl DeferData {
         };
         DeferData {
     	    src: from_dir,
-    	    src_before: src_before,
-    	     src_after: src_after,
-    	     src_wild: src_wild,
+    	    src_before,
+    	     src_after,
+    	     src_wild,
     	    dst: None,
     	    dst_before: None,
     	    dst_after: None,
@@ -1465,7 +1457,7 @@ impl DeferData {
         }
     }
     
-    fn from_to(from:&PathBuf, to:&PathBuf) -> Self {
+    fn from_to(from:&Path, to:&Path) -> Self {
         let mut res = DeferData::from(from);
         let mut to_name = to.file_name().unwrap().to_str().unwrap().to_string();
         let mut to_dir = if to.is_dir() {
@@ -1513,14 +1505,9 @@ impl DeferData {
                     succ_count += 1
                 },
                 Op::DEL => {
-                    if file.is_file() {
-                        if fs::remove_file(&file).is_ok() {
+                    if file.is_file() && fs::remove_file(&file).is_ok()
+                      || file.is_dir() && fs::remove_dir_all(&file).is_ok() {
                            succ_count += 1 
-                        };
-                    } else if file.is_dir() {
-                        if fs::remove_dir_all(&file).is_ok() {
-                            succ_count += 1
-                        };
                     }
                 }
                 Op::CPY => {
@@ -1549,11 +1536,9 @@ impl DeferData {
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     }
-                    if file.is_file() || file.is_dir() {
-                        if fs::rename(&file, &dest).is_ok() {
+                    if (file.is_file() || file.is_dir()) && fs::rename(&file, &dest).is_ok() {
                            // eprintln!{"renaming {file:?} to {dest:?}"}
-                            succ_count += 1
-                        };
+                        succ_count += 1
                     } 
                     if !name_to.is_empty() {
                         dest.pop();
