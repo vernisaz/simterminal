@@ -914,12 +914,16 @@ fn expand_wildcard(cwd: &PathBuf, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<
                 comp_path = cwd.join(comp_path)
             }
             let data = DeferData::from(&comp_path);
-            comp_path.pop();
-            for arg in data.src_wild {
-                comp_path.push(format!{"{}{arg}{}",&data.src_before, &data.src_after})
-                ;
-                res.push(comp_path.display().to_string());
+            if data.src_wild.is_empty() {
+                res.push(comp.to_string())
+            } else {
                 comp_path.pop();
+                for arg in data.src_wild {
+                    comp_path.push(format!{"{}{arg}{}",&data.src_before, &data.src_after})
+                    ;
+                    res.push(comp_path.display().to_string());
+                    comp_path.pop();
+                }
             }
         }
     }
