@@ -394,46 +394,41 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
                         } else {
                             prev = call_process(cmd, &cwd, &stdin, &child_env);
                         }
-                    } else {
-                        if in_file.is_empty() {
-                            if !out_file .is_empty() /*None*/ {
-                                let out_file = interpolate_env(out_file);
-                                let mut file = PathBuf::from(&out_file);
-                                if !file.has_root() {
-                                   file = cwd.join(file); 
-                                }
-                                let mut file = OpenOptions::new()
-                                    .write(true)
-                                    .append(appnd) 
-                                    .create(!appnd) 
-                                    .truncate(!appnd)
-                                    .open(file)?; 
-                                prev = call_process_out_file(cmd, &cwd, &stdin, &mut file, &child_env);
-                            } else {
-                                prev = call_process(cmd, &cwd, &stdin, &child_env);
+                    } else if in_file.is_empty() {
+                        if !out_file .is_empty() /*None*/ {
+                            let out_file = interpolate_env(out_file);
+                            let mut file = PathBuf::from(&out_file);
+                            if !file.has_root() {
+                               file = cwd.join(file); 
                             }
+                            let mut file = OpenOptions::new()
+                                .write(true)
+                                .append(appnd) 
+                                .create(!appnd) 
+                                .truncate(!appnd)
+                                .open(file)?; 
+                            prev = call_process_out_file(cmd, &cwd, &stdin, &mut file, &child_env);
                         } else {
-                            let in_file = interpolate_env(in_file);
-                            let mut in_file = PathBuf::from(in_file);
-                            if !in_file.has_root() {
-                                in_file = PathBuf::from(&cwd).join(in_file);
-                            }
-                            match fs::read(&in_file) {
-                                Ok(contents) =>  {
-                                    let res = call_process_piped(cmd, &cwd, &contents, &child_env).unwrap();
-                                    if out_file.is_empty() {
-                                        send!("{}\u{000C}",String::from_utf8_lossy(&res));
-                                    } else {
-                                        let out_file = interpolate_env(out_file);
-                                        let mut out_file = PathBuf::from(out_file);
-                                        if !out_file.has_root() {
-                                            out_file = PathBuf::from(&cwd).join(out_file);
-                                        }
-                                        let _ =fs::write(&out_file, res);
-                                        send!("\u{000C}");
-                                    }
-                                }
-                                _ => ()
+                            prev = call_process(cmd, &cwd, &stdin, &child_env);
+                        }
+                    } else {
+                        let in_file = interpolate_env(in_file);
+                        let mut in_file = PathBuf::from(in_file);
+                        if !in_file.has_root() {
+                            in_file = PathBuf::from(&cwd).join(in_file);
+                        }
+                        if let Ok(contents) = fs::read(&in_file) {
+                            let res = call_process_piped(cmd, &cwd, &contents, &child_env).unwrap();
+                            if out_file.is_empty() {
+                                 send!("{}\u{000C}",String::from_utf8_lossy(&res));
+                            } else {
+                                 let out_file = interpolate_env(out_file);
+                                 let mut out_file = PathBuf::from(out_file);
+                                 if !out_file.has_root() {
+                                     out_file = PathBuf::from(&cwd).join(out_file);
+                                 }
+                                 let _ =fs::write(&out_file, res);
+                                 send!("\u{000C}");
                             }
                         }
                     }
