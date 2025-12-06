@@ -135,5 +135,6 @@ Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate wi
 You can also use Cargo.
 
 ## Where it is used
-[Simple commander](https://github.com/vernisaz/simcom) file manager.
+- [Simple commander](https://github.com/vernisaz/simcom) file manager
+- [Rust Development Studio](https://github.com/vernisaz/rust_dev_studio)
 
