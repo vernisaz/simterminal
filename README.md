@@ -136,5 +136,5 @@ You can also use Cargo.
 
 ## Where it is used
 - [Simple commander](https://github.com/vernisaz/simcom) file manager
-- [Rust Development Studio](https://github.com/vernisaz/rust_dev_studio)
+- [Rust Development Studio](https://github.com/vernisaz/rust_dev_studio) multipurpose web IDE
 
