@@ -1,5 +1,5 @@
 //! terminal web socket CGI
-
+#[macro_export]
 macro_rules! send {
     ($($arg:tt)*) => (
         //use std::io::Write;
@@ -25,7 +25,7 @@ use std::{io::{stdout,self,Read,BufRead,Write,Stdin,BufReader},
 #[cfg(target_os = "windows")]
 use std::os::windows::prelude::*;
 
-const VERSION: &str = env!("VERSION");
+pub const VERSION: &str = env!("VERSION");
 
 const TERMINAL_NAME : &str = "sim/terminal";
 
@@ -36,10 +36,10 @@ pub trait Terminal {
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
-    fn persist_cwd(&self, _cwd: &Path) {
+    fn persist_cwd(&mut self, _cwd: &Path) {
         
     }
-    fn main_loop(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn main_loop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         term_loop(self)
     }
 }
@@ -84,9 +84,9 @@ mod windows {
         }
     }
 }
-fn term_loop(term: &(impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::Error>> {
+fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::Error>> {
     let (mut cwd, def_dir, aliases, ver) = term.init();
- 
+    let ver = ver.to_string();
     let mut stdin = io::stdin();
     
     send!("\nOS terminal {ver}\n") ;// {ver:?} {project} {session}");
