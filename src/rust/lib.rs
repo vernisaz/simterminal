@@ -1,3 +1,3 @@
 mod terminal;
 
-pub use terminal::Terminal;
+pub use terminal::{Terminal, unescape};

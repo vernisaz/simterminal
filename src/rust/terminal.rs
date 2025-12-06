@@ -1295,7 +1295,7 @@ fn remove_redundant_components(path: &PathBuf) -> PathBuf {
     result
 }
 
-fn unescape(string:&impl AsRef<str>) -> String {
+pub fn unescape(string:&impl AsRef<str>) -> String {
     let mut res = String::new();
     let mut esc = false;
     for c in string.as_ref().chars() {
