@@ -103,7 +103,7 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
     display: inline;
 }
 ```
-and HTML
+and HTML can be provided statically, as
 ```html
 <section id="terminal-container">
     <div id="terminal">
