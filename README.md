@@ -6,7 +6,8 @@ Provide a terminal functionality in a Web or a standalone application.
 ## How to use
 1. Implement trait `Terminal`. Only `init` is required. For example:
 ```Rust
-struct Commander {}
+struct Commander ;
+const VERSION: &str = "1.1.1";
 
 impl Terminal for Commander {
     fn init(&self) -> (PathBuf, PathBuf, HashMap<String,Vec<String>>,&str) {
@@ -31,7 +32,7 @@ impl Terminal for Commander {
 2. Call `main_loop` in the `main` app function, like:
 ```Rust
 fn main() {
-    let _ = Commander{}.main_loop();
+    let _ = Commander.main_loop();
 }
 ```
 3. Client part should include *terminal.js*, and then use a code like:
@@ -68,6 +69,18 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 ```
 4. Add CSS
 ```CSS
+#terminal {
+    color: #0e131f;
+    font-family: monospace; 
+    padding-top:2px;
+    padding-bottom: 1em;
+    width: fit-content;
+}
+
+#terminal pre {
+    display: inline;
+}
+
 .scroll-up {
     opacity:0.9;
     background-color:#ddd;
@@ -89,6 +102,14 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 .scroll-up > div pre {
     display: inline;
 }
+```
+and HTML
+```html
+<section id="terminal-container">
+    <div id="terminal">
+        <code contenteditable="true" id="commandarea" onkeydown="sendCommand(this)" autofocus style="min-width:1em">&nbsp;</code>
+    </div>
+</section>
 ```
 5. The following JSON code snippet has to be added in [SimHTTP](https://github.com/vernisaz/simhttp) [configuration](https://github.com/vernisaz/simhttp/blob/master/env.conf):
 ```JSON
