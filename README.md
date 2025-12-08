@@ -121,7 +121,9 @@ and HTML can be provided statically, as
    "WS-CGI": true,
    "translated": "./bin/cmdterm"}
 ```
+
 `cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your desired settings.
+
 6. Customize terminal output by adding clickable links
 Sometimes a terminal output cab contain URLs and other clickable elements as references to source with line numbers. Such
 elements can be wrapped in clickable links in the terminal output. Define function `extendURL` with a string parameter
