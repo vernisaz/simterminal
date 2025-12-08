@@ -292,7 +292,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
                     term.persist_cwd(&cwd);
                     send!("{}\u{000C}", cwd.as_path().display());
                 } else {
-                    send!("cd: no such file or directory: {}\u{000C}", cmd[1]);
+                    send!("cd: no such file or directory: {}\u{000C}", cwd_new.display().to_string());
                 }
             }
             "del" if cfg!(windows) => {
