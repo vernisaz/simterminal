@@ -92,7 +92,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
     send!("\nOS terminal {ver}\n") ;// {ver:?} {project} {session}");
 
     send!("{}\u{000C}", cwd.as_path().display());
-    let child_env: HashMap<String, String> = env::vars().filter(|(k, _)|
+    let mut child_env: HashMap<String, String> = env::vars().filter(|(k, _)|
              k != "GATEWAY_INTERFACE"
              && k != "QUERY_STRING"
              && k != "REMOTE_ADDR"
@@ -293,7 +293,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
                     term.persist_cwd(&cwd);
                     send!("{}\u{000C}", cwd.as_path().display());
                 } else {
-                    send!("cd: no such file or directory: {}\u{000C}", cmd[1]);
+                    send!("cd: no such file or directory: {}\u{000C}", cwd_new.display().to_string());
                 }
             }
             "del" if cfg!(windows) => {
@@ -380,6 +380,27 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
                     Err(err) => {send!("Err: {err} in removing {}\u{000C}", cmd[1]);},
                 }
             }
+            "export" => {
+                if cmd.len() != 2 {
+                    send!("Parameter in a form - name=value has to be specified\u{000C}");
+                    continue
+                }
+                if let Some((name,value)) = cmd[1].split_once('=') {
+                    child_env.insert(name.to_string(),value.to_string());
+                    send!("\u{000C}");
+                } else {
+                    send!("The parameter has to be in the name=value form\u{000C}");
+                }
+                continue
+            }
+            "unset" => {
+                if cmd.len() != 2 {
+                    send!("Name of an environment variable is not specified\u{000C}");
+                    continue
+                }
+                child_env.remove(&cmd[1]);
+                send!("\u{000C}");
+            } 
             "ver!" => {
                 send!("{VERSION}/{ver}\u{000C}"); // path
             }
