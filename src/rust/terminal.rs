@@ -84,7 +84,7 @@ mod windows {
         }
     }
 }
-fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::error::Error>> {
+fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> {
     let (mut cwd, def_dir, aliases, ver) = term.init();
     let ver = ver.to_string();
     let mut stdin = io::stdin();
@@ -111,6 +111,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
              && k != "AUTH_TYPE"
              && k != "REMOTE_USER"
              && !k.starts_with("HTTP_")
+             && k != "_"
              && k != "PWD").collect();
     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
     let mut prev: Option<Vec<u8>> = None;
@@ -400,11 +401,18 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
                 }
                 child_env.remove(&cmd[1]);
                 send!("\u{000C}");
-            } 
+            }
+            "set" => {
+                for (key, value) in &child_env {
+                    send!("{}={}\n", key, value);
+                }
+                send!("\u{000C}");
+            }
             "ver!" => {
                 send!("{VERSION}/{ver}\u{000C}"); // path
             }
             _ => {
+                child_env.insert("_".to_string(), cmd[0].clone());
                 if piped.is_empty() {
                     cmd = expand_wildcard(&cwd, cmd);
                     cmd = expand_alias(&aliases, cmd);
