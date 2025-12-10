@@ -110,7 +110,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn std::err
              && k != "CONTENT_TYPE"
              && k != "AUTH_TYPE"
              && k != "REMOTE_USER"
-             && !k.starts_with("HTTP_")).collect();
+             && !k.starts_with("HTTP_")
+             && k != "PWD").collect();
     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
     let mut prev: Option<Vec<u8>> = None;
     loop {
