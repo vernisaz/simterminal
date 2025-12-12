@@ -103,6 +103,9 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 .scroll-up > div pre {
     display: inline;
 }
+@keyframes blink {
+	0% { opacity:1 } 75% { opacity:1 } 76% { opacity:0 } 100% { opacity:0 }
+}
 ```
 and HTML can be provided statically, as
 ```html

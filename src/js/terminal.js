@@ -5,7 +5,7 @@ const PAL_LOOKUP = ["rgb(12,12,12)", "rgb(197,15,31)", "rgb(19,161,14)", "rgb(19
 // "rgb(250,229,135)"
 var lastChunk = ''
 
-/* */
+/* convert it in a dedicated object */
 var bold = false
 var under = false
 var revs = false
@@ -15,6 +15,7 @@ var hide = false
 var blink = false
 var fon_color = ''
 var fon_back = ''
+var dim = false;
 /*  */            
             
 function clearColorAttributes() {
@@ -28,6 +29,7 @@ function clearColorAttributes() {
     blink = false
     fon_color = ''
     fon_back = ''
+    dim = false;
      /*                   */
 }
 
@@ -199,6 +201,9 @@ function ws_term_connect() {
                             hide = true
                             shift += 1
                         }
+                    }  else if (ans.charAt(shift) == '2' && (ans.charAt(shift+1) == ';' || ans.charAt(shift+1) == 'm')) {
+                        dim = true
+                        shift += 1
                     } else 
                         shift = 0
                     if (shift != 0 && ans.charAt(shift) == ';')
@@ -207,7 +212,7 @@ function ws_term_connect() {
 
                 } while (ans.charAt(shift) != 'm' && shift != 0 && shift < ans.length)
                 }
-                const applyFmt = fon_color || fon_back || bold || under || strike || italic || blink || hide
+                const applyFmt = fon_color || fon_back || bold || under || strike || italic || blink || hide || dim
 
                 if ((!wasEsc || shift > 0) && ans.length > shift || applyFmt) {
                     if (applyFmt)  {
@@ -226,8 +231,10 @@ function ws_term_connect() {
                             ansi_html += 'font-style: italic;'
                         if ( blink )
                             ansi_html += 'animation:blink 0.75s ease-in infinite alternate!important;'
-                        if ( hide )
+                        if ( hide && !dim )
                             ansi_html += 'opacity: 0.0;'
+                        if ( dim )
+                            ansi_html += 'opacity: 0.5;'
                         ansi_html += '">' + htmlEncode(ans.substring(shift>0?shift + 1:0)) +'</span>'
                     } else {
                         var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
