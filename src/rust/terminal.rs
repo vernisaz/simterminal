@@ -113,6 +113,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
              && !k.starts_with("HTTP_")
              && k != "_"
              && k != "PWD").collect();
+    #[cfg(target_os = "windows")]
+    child_env.insert("TERM=".into(),"xterm-256color".into());         
     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
     let mut prev: Option<Vec<u8>> = None;
     loop {
