@@ -404,11 +404,27 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 child_env.remove(&cmd[1]);
                 send!("\u{000C}");
             }
-            "set" => {
-                for (key, value) in &child_env {
-                    send!("{}={}\n", key, value);
+            "set" if cfg!(windows) => {
+                match cmd.len() {
+                1 => 
+                    for (key, value) in &child_env {
+                        send!("{}={}\n", key, value);
+                    }
+                2 => {
+                    if let Some((name,value)) = cmd[1].split_once('=') {
+                        if value.is_empty() {
+                            child_env.remove(name);
+                        } else {
+                            child_env.insert(name.to_string(),value.to_string());
+                        }
+                    } else {
+                        send!("The parameter has to be in a form: name=value");
+                    }
+                }
+                _ => { send!("Invalid number of parameters");}
                 }
                 send!("\u{000C}");
+                
             }
             "ver!" => {
                 send!("{VERSION}/{ver}\u{000C}"); // path
