@@ -141,6 +141,22 @@ function ws_term_connect() {
                         fon_back = 'Canvas'
                         fon_color = 'CanvasText'
                         shift += 2
+                    } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '2') {
+                        dim = false
+                        shift += 2
+                    } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '5') {
+                        blink = false
+                        shift += 2
+                    } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '8') {
+                        hide = false
+                        shift += 2
+                    } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '9') {
+                        strike = false
+                        shift += 2
+                    } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '1') {
+                        bold = false
+                        shift += 2
+                    
                     } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 5 && ans.charAt(shift + 1) == '8') {
                         if (ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '5' &&
                             ans.charAt(shift + 4) == ';') {
