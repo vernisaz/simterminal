@@ -288,6 +288,8 @@ function ws_term_connect() {
         cons.scrollIntoView({ behavior: "smooth", block: "end" })
      }
      termWskt.onclose = (event) => {
+         if (notifRecon < 0)
+            return
         if (notifRecon == 0)
           notifRecon = 500
         if (notifRecon < maxReconn)
@@ -299,6 +301,7 @@ function ws_term_connect() {
 }
 
 function ws_term_close() {
+    notifRecon = -1 // prevent auto reconnect
     termWskt.close()
 }
 
