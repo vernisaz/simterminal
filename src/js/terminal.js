@@ -143,6 +143,7 @@ function ws_term_connect() {
                         shift += 2
                     } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '2') {
                         dim = false
+                        bold = false
                         shift += 2
                     } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '5') {
                         blink = false
@@ -156,7 +157,9 @@ function ws_term_connect() {
                     } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '1') {
                         bold = false
                         shift += 2
-                    
+                    } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '3') {
+                        italic = false
+                        shift += 2
                     } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 5 && ans.charAt(shift + 1) == '8') {
                         if (ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '5' &&
                             ans.charAt(shift + 4) == ';') {

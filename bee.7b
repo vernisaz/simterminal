@@ -9,7 +9,7 @@ common =..${~/~}simscript${~/~}comm-crate.7b:file
 common_test =..${~/~}simscript${~/~}comm-test.7b:file
 crate_dir=..${~/~}crates
 
-version=1.03b007
+version=1.03b008
 set_env(VERSION,version)
 mode=mode:prop
 if {
