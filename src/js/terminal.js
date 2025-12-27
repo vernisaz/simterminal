@@ -271,6 +271,9 @@ function ws_term_connect() {
                 wasEsc = true
             }
             //console.log(ansi_html) // debug
+             if (typeof extendURL === 'function') {
+                ansi_html = extendURL(ansi_html);
+            } 
             term_frag.innerHTML = ansi_html
         } else {
             var lineStr = htmlEncode(chunk)
