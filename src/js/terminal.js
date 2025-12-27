@@ -254,7 +254,11 @@ function ws_term_connect() {
                             ansi_html += 'opacity: 0.0;'
                         if ( dim )
                             ansi_html += 'opacity: 0.5;'
-                        ansi_html += '">' + htmlEncode(ans.substring(shift>0?shift + 1:0)) +'</span>'
+                        var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
+                        if (typeof extendURL === 'function') {
+                            lineStr = extendURL(lineStr);
+                        }
+                        ansi_html += '">' + lineStr +'</span>'
                     } else {
                         var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
                         if (typeof extendURL === 'function') {
@@ -271,9 +275,6 @@ function ws_term_connect() {
                 wasEsc = true
             }
             //console.log(ansi_html) // debug
-             if (typeof extendURL === 'function') {
-                ansi_html = extendURL(ansi_html);
-            } 
             term_frag.innerHTML = ansi_html
         } else {
             var lineStr = htmlEncode(chunk)
