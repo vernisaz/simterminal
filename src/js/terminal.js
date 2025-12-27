@@ -165,7 +165,7 @@ function ws_term_connect() {
                             ans.charAt(shift + 4) == ';') {
                             const forg = ans.charAt(shift) == '3'
                             shift += 5
-                            // find 'm' and get number
+                            // find 'm' or ';' and get number
                             var colNum 
                             if (ans.charAt(shift + 1) == 'm') {
                                 colNum = ans.charAt(shift)
@@ -173,6 +173,9 @@ function ws_term_connect() {
                             } else if (ans.charAt(shift + 2) == 'm') {
                                 colNum = Number(ans.substring(shift, shift+2))
                                 shift += 2
+                            } else if (ans.charAt(shift + 3) == 'm') {
+                                colNum = Number(ans.substring(shift, shift+3))
+                                shift += 3
                             }
                             if (colNum > -1 && colNum < PAL_LOOKUP.length) {
                                 if (!(WIN_SERVER && colNum == PAL_LOOKUP.length - 1)) {
@@ -181,6 +184,14 @@ function ws_term_connect() {
                                     else
                                         fon_back = PAL_LOOKUP[colNum]
                                 }
+                            } else if (colNum < 232) {
+                                colNum = colNum - 16
+                                let colorStr = 'rgb(' + (Math.floor(colNum/36)*51) + ',' + ((colNum%36)*51) + ',' + (((colNum%36)%6)*51) + ')'
+                                //console.log('colorStr:'+colorStr+'for '+colNum)
+                                if (forg)
+                                        fon_color = colorStr
+                                    else
+                                        fon_back = colorStr
                             } else
                                 shift = 0
                         } else
@@ -434,4 +445,7 @@ function clearScreen() {
     const prompt = document.createElement("pre")
     prompt.textContent = '$'
     appendContent(cons,prompt)
+}
+function isDigit(char) {
+  return /^\d$/.test(char);
 }
