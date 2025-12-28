@@ -160,20 +160,20 @@ function ws_term_connect() {
                     } else if (ans.charAt(shift) == '2' && ans.charAt(shift+1) == '3') {
                         italic = false
                         shift += 2
-                    } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 5 && ans.charAt(shift + 1) == '8') {
-                        if (ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '5' &&
+                    } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 5 && ans.charAt(shift + 1) == '8' &&
+                        ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '5' &&
                             ans.charAt(shift + 4) == ';') {
                             const forg = ans.charAt(shift) == '3'
                             shift += 5
                             // find 'm' or ';' and get number
                             var colNum 
-                            if (ans.charAt(shift + 1) == 'm') {
+                            if (ans.charAt(shift + 1) == 'm' || ans.charAt(shift + 1) == ';') {
                                 colNum = ans.charAt(shift)
                                 shift += 1
-                            } else if (ans.charAt(shift + 2) == 'm') {
+                            } else if (ans.charAt(shift + 2) == 'm' || ans.charAt(shift + 2) == ';') {
                                 colNum = Number(ans.substring(shift, shift+2))
                                 shift += 2
-                            } else if (ans.charAt(shift + 3) == 'm') {
+                            } else if (ans.charAt(shift + 3) == 'm' || ans.charAt(shift + 3) == ';') {
                                 colNum = Number(ans.substring(shift, shift+3))
                                 shift += 3
                             }
@@ -186,15 +186,55 @@ function ws_term_connect() {
                                 }
                             } else if (colNum < 232) {
                                 colNum = colNum - 16
-                                let colorStr = 'rgb(' + (Math.floor(colNum/36)*51) + ',' + ((colNum%36)*51) + ',' + (((colNum%36)%6)*51) + ')'
+                                let colorStr = 'rgb(' + (Math.floor(colNum/36) * 40 + 55) + ',' + (Math.floor((colNum%36)/6) * 40 + 55) + ',' + ((colNum%6) * 40 + 55) + ')'
                                 //console.log('colorStr:'+colorStr+'for '+colNum)
                                 if (forg)
                                         fon_color = colorStr
                                     else
                                         fon_back = colorStr
+                            } else if (colNum > 231) {
+                                let gray_val = (colNum - 232) * 10 // 0 to 240, roughly
+                                let grayStr = 'rgb(' + gray_val + ',' + gray_val + ',' + gray_val + ')'
+                                if (forg)
+                                        fon_color = grayStr
+                                    else
+                                        fon_back = grayStr
                             } else
                                 shift = 0
-                        } else
+                        //} else
+                         //   shift = 0
+                    } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 11 && ans.charAt(shift + 1) == '8' &&
+                        ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '2' &&
+                            ans.charAt(shift + 4) == ';') { // O'key want true RGB ?
+                        const forg = ans.charAt(shift) == '3'
+                        shift += 5
+                        let done = false
+                        const rc = upTo3Digits(ans, shift)
+                        if (rc > 0) {
+                            if (ans.charAt(shift + rc) == ';') {
+                                const red = ans.substring(shift,shift+rc)
+                                shift += rc + 1
+                                const gc = upTo3Digits(ans, shift)
+                                if (gc > 0) {
+                                    if (ans.charAt(shift + gc) == ';') {
+                                        const green = ans.substring(shift,shift+gc)
+                                        shift += gc + 1
+                                        const bc = upTo3Digits(ans, shift)
+                                        if (bc > 0) {
+                                            const blue = ans.substring(shift,shift+bc)
+                                            shift += bc
+                                            const rgbClr = 'rgb(' + red + ',' + green + ',' + blue + ')'
+                                            if (forg)
+                                                fon_color = rgbClr
+                                            else
+                                                fon_back = rgbClr
+                                            done = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (!done)
                             shift = 0
                     } else if (ans.charAt(shift) == '4') {
                         if (ans.charAt(shift+1) >= '0' && ans.charAt(shift+1) <= '9') {
@@ -446,6 +486,15 @@ function clearScreen() {
     prompt.textContent = '$'
     appendContent(cons,prompt)
 }
+function upTo3Digits(str,offs) {
+    let shift = 0
+    while (isDigit(str.charAt(offs+shift)) && shift < 3) {
+        shift++
+    }
+    if (str.charAt(offs+shift) == 'm' || str.charAt(offs+shift) == ';')
+        return shift
+    return 0
+}
 function isDigit(char) {
-  return /^\d$/.test(char);
+  return char >= '0' && char <= '9'
 }
