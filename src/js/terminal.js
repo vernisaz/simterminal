@@ -162,47 +162,44 @@ function ws_term_connect() {
                         shift += 2
                     } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 5 && ans.charAt(shift + 1) == '8' &&
                         ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '5' &&
-                            ans.charAt(shift + 4) == ';') {
-                            const forg = ans.charAt(shift) == '3'
-                            shift += 5
-                            // find 'm' or ';' and get number
-                            var colNum 
-                            if (ans.charAt(shift + 1) == 'm' || ans.charAt(shift + 1) == ';') {
-                                colNum = ans.charAt(shift)
-                                shift += 1
-                            } else if (ans.charAt(shift + 2) == 'm' || ans.charAt(shift + 2) == ';') {
-                                colNum = Number(ans.substring(shift, shift+2))
-                                shift += 2
-                            } else if (ans.charAt(shift + 3) == 'm' || ans.charAt(shift + 3) == ';') {
-                                colNum = Number(ans.substring(shift, shift+3))
-                                shift += 3
+                        ans.charAt(shift + 4) == ';') {
+                        const forg = ans.charAt(shift) == '3'
+                        shift += 5
+                        // find 'm' or ';' and get number
+                        var colNum 
+                        if (ans.charAt(shift + 1) == 'm' || ans.charAt(shift + 1) == ';') {
+                            colNum = ans.charAt(shift)
+                            shift += 1
+                        } else if (ans.charAt(shift + 2) == 'm' || ans.charAt(shift + 2) == ';') {
+                            colNum = Number(ans.substring(shift, shift+2))
+                            shift += 2
+                        } else if (ans.charAt(shift + 3) == 'm' || ans.charAt(shift + 3) == ';') {
+                            colNum = Number(ans.substring(shift, shift+3))
+                            shift += 3
+                        }
+                        if (colNum > -1 && colNum < PAL_LOOKUP.length) {
+                            if (!(WIN_SERVER && colNum == PAL_LOOKUP.length - 1)) {
+                                if (forg)
+                                    fon_color = PAL_LOOKUP[colNum]
+                                else
+                                    fon_back = PAL_LOOKUP[colNum]
                             }
-                            if (colNum > -1 && colNum < PAL_LOOKUP.length) {
-                                if (!(WIN_SERVER && colNum == PAL_LOOKUP.length - 1)) {
-                                    if (forg)
-                                        fon_color = PAL_LOOKUP[colNum]
-                                    else
-                                        fon_back = PAL_LOOKUP[colNum]
-                                }
-                            } else if (colNum < 232) {
-                                colNum = colNum - 16
-                                let colorStr = 'rgb(' + (Math.floor(colNum/36) * 40 + 55) + ',' + (Math.floor((colNum%36)/6) * 40 + 55) + ',' + ((colNum%6) * 40 + 55) + ')'
-                                //console.log('colorStr:'+colorStr+'for '+colNum)
-                                if (forg)
-                                        fon_color = colorStr
-                                    else
-                                        fon_back = colorStr
-                            } else if (colNum > 231) {
-                                let gray_val = (colNum - 232) * 10 // 0 to 240, roughly
-                                let grayStr = 'rgb(' + gray_val + ',' + gray_val + ',' + gray_val + ')'
-                                if (forg)
-                                        fon_color = grayStr
-                                    else
-                                        fon_back = grayStr
-                            } else
-                                shift = 0
-                        //} else
-                         //   shift = 0
+                        } else if (colNum < 232) {
+                            colNum = colNum - 16
+                            let colorStr = 'rgb(' + (Math.floor(colNum/36) * 40 + 55) + ',' + (Math.floor((colNum%36)/6) * 40 + 55) + ',' + ((colNum%6) * 40 + 55) + ')'
+                            if (forg)
+                                    fon_color = colorStr
+                                else
+                                    fon_back = colorStr
+                        } else if (colNum > 231) {
+                            let gray_val = (colNum - 232) * 10 // 0 to 240, roughly
+                            let grayStr = 'rgb(' + gray_val + ',' + gray_val + ',' + gray_val + ')'
+                            if (forg)
+                                    fon_color = grayStr
+                                else
+                                    fon_back = grayStr
+                        } else
+                            shift = 0
                     } else if (( ans.charAt(shift) == '3' || ans.charAt(shift) == '4') && (ans.length-shift) > 11 && ans.charAt(shift + 1) == '8' &&
                         ans.charAt(shift + 2) == ';' && ans.charAt(shift + 3) == '2' &&
                             ans.charAt(shift + 4) == ';') { // O'key want true RGB ?
