@@ -16,6 +16,7 @@ macro_rules! send {
 
 extern crate simweb;
 extern crate simtime;
+extern crate simcolor;
 
 use std::{io::{stdout,self,Read,BufRead,Write,Stdin,BufReader},
     fs::{self,OpenOptions,Metadata},thread,process::{Command,Stdio},
@@ -25,11 +26,15 @@ use std::{io::{stdout,self,Read,BufRead,Write,Stdin,BufReader},
 #[cfg(target_os = "windows")]
 use std::os::windows::prelude::*;
 
+use simcolor::{Colorized};
+
 pub const VERSION: &str = env!("VERSION");
 
 const TERMINAL_NAME : &str = "sim/terminal";
 
 const MAX_BLOCK_LEN : usize = 4096;
+
+const DIR_COLOR: u8 = 41;
 
 pub trait Terminal {
     fn init(&self) -> (PathBuf, PathBuf, HashMap<String,Vec<String>>,&str) ;
@@ -86,12 +91,11 @@ mod windows {
 }
 fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> {
     let (mut cwd, def_dir, aliases, ver) = term.init();
-    let ver = ver.to_string();
+    let ver = ver.color_num(66).to_string();
     let mut stdin = io::stdin();
     
     send!("\nOS terminal {ver}\n") ;// {ver:?} {project} {session}");
 
-    send!("{}\u{000C}", cwd.as_path().display());
     let mut child_env: HashMap<String, String> = env::vars().filter(|(k, _)|
              k != "GATEWAY_INTERFACE"
              && k != "QUERY_STRING"
@@ -114,7 +118,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
              && k != "_"
              && k != "PWD").collect();
     #[cfg(target_os = "windows")]
-    child_env.insert("TERM=".into(),"xterm-256color".into());         
+    child_env.insert("TERM=".into(),"xterm-256color".into());
+    send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
+    // TODO decide if to introduce a monochrome terminal for itself
     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
     let mut prev: Option<Vec<u8>> = None;
     loop {
@@ -239,26 +245,22 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             dir.push_str( &format!("{:8}{m:>2}/{d:>2}/{y:4}  {h:>2}:{mm:02} {}M {:>14} ",' ', pm, EntryLen(&metadata)));
                         }
                         let path = path.path();
-                        let mut reset = true;
+                        let mut file_name = path.file_name().unwrap().to_str().unwrap().default();
                         if path.is_dir() {
-                            dir.push_str("\x1b[34;1m");
+                            file_name = file_name.blue()
                         } else if let Some(ext) = path.extension() {
                             let ext = ext.to_str().unwrap();
                             match ext {
-                                "exe" | "com" | "bat" => dir.push_str("\x1b[92m"),
-                                "zip" | "gz" | "rar" | "7z" | "xz" | "jar" => dir.push_str("\x1b[31m"),
-                                "jpeg" | "jpg" | "png" | "bmp" | "gif"  => dir.push_str("\x1b[35m"),
-                                _ => reset = false
+                                "exe" | "com" | "bat" => file_name = file_name.bright().green(),
+                                "zip" | "gz" | "rar" | "7z" | "xz" | "jar" => file_name = file_name.red(),
+                                "jpeg" | "jpg" | "png" | "bmp" | "gif"  => file_name = file_name.magenta(),
+                                _ => ()
                             }
                         } else if path.is_symlink() {
-                            dir.push_str("\x1b[36m");
-                        } else {
-                            reset = false
+                            file_name = file_name.cyan()
                         }
-                        dir.push_str(path.file_name().unwrap().to_str().unwrap());
-                        if reset {
-                            dir.push_str("\x1b[0m")
-                        }
+                        
+                        dir.push_str(&format!("{file_name}"));
                         dir.push('\n');
                     }
                     send!("{dir}\u{000C}");
@@ -277,7 +279,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
             }
             "pwd" => {
-                send!("{}\u{000C}", cwd.as_path().display()); // path
+                send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
             }
             "cd" => {
                 let mut cwd_new ;
@@ -294,9 +296,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 if cwd_new.is_dir() {
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
-                    send!("{}\u{000C}", cwd.as_path().display());
+                    send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
                 } else {
-                    send!("cd: no such file or directory: {}\u{000C}", cwd_new.display().to_string());
+                    send!("cd: no such file or directory: {}\u{000C}", cwd_new.to_string_lossy().color_num(161));
                 }
             }
             "del" if cfg!(windows) => {

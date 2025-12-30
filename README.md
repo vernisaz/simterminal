@@ -160,10 +160,11 @@ span+a,pre a {
 ## How build the crate
 Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate will be stored in *../crates* directory.
 You can also use Cargo.
-The two dependency crates are required:
-- The [Common building scripts](https://github.com/vernisaz/simscript) (it isn't a crate, but building scripts)
+The three dependency crates are required:
 - The [SimWeb](https://github.com/vernisaz/simweb)
 - The [Simple Time](https://github.com/vernisaz/simtime)
+- The [Simple Color](https://github.com/vernisaz/simcolor)
+- And the [Common building scripts](https://github.com/vernisaz/simscript) for building them
 
 ## Where it is used
 - [Simple commander](https://github.com/vernisaz/simcom) file manager
