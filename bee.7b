@@ -7,9 +7,9 @@ crate_src=src${~/~}rust
 test file=test
 common =..${~/~}simscript${~/~}comm-crate.7b:file
 common_test =..${~/~}simscript${~/~}comm-test.7b:file
-crate_dir=../rusthub/src/rust${~/~}crates
+crate_dir=..${~/~}crates
 
-version=1.05b015
+version=1.05b016
 set_env(VERSION,version)
 mode=mode:prop
 if {
