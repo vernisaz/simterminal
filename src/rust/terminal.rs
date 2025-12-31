@@ -208,12 +208,12 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             let (y,m,d,h,mm,_s,_) = simtime::get_datetime(1970, (metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64 + tz) as u64);
                             let ro = metadata.permissions().readonly();
                             let link = metadata.is_symlink();
-                            let archive = if cfg!(windows) {
-                                const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
-                               (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0
-                            } else {
-                                 false
-                            };
+                            #[cfg(target_os = "windows")]
+                            const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
+                            #[cfg(target_os = "windows")]
+                            let archive =  (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0;
+                            #[cfg(unix)]
+                            let archive = false;
                             if metadata.is_dir() {
                                 dir.push('d')
                             } else {
