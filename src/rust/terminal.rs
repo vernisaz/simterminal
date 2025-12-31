@@ -117,10 +117,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
              && !k.starts_with("HTTP_")
              && k != "_"
              && k != "PWD").collect();
-    #[cfg(target_os = "windows")]
-    child_env.insert("TERM=".into(),"xterm-256color".into());
     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
-    // TODO decide if to introduce a monochrome terminal for itself
+    // a decision about supporting colors can be done in init()
     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
     let mut prev: Option<Vec<u8>> = None;
     loop {
@@ -209,20 +207,26 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
                             let (y,m,d,h,mm,_s,_) = simtime::get_datetime(1970, (metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64 + tz) as u64);
                             let ro = metadata.permissions().readonly();
-                            let file = metadata.is_file();
                             let link = metadata.is_symlink();
-                            if file {
-                                dir.push_str("-a")
+                            let archive = if cfg!(windows) {
+                                const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
+                               (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0
                             } else {
-                                dir.push_str("d-")
+                                 false
+                            };
+                            if metadata.is_dir() {
+                                dir.push('d')
+                            } else {
+                                dir.push('-')
                             }
+                            dir.push(if archive {'a'} else {'-'});
                             if ro { dir.push('r') } else { dir.push('-') }
                             #[cfg(target_os = "windows")]
                             {
                                 let attributes = metadata.file_attributes();
                                 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
                                 const FILE_ATTRIBUTE_SYSTEM: u32 = 0x00000004;
-                                //const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
+                                
                                 if (attributes & FILE_ATTRIBUTE_HIDDEN) > 0 { // Check if the hidden attribute is set.
                                     dir.push('h')
                                 } else {
@@ -247,7 +251,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         let path = path.path();
                         let mut file_name = path.file_name().unwrap().to_str().unwrap().default();
                         if path.is_dir() {
-                            file_name = file_name.blue()
+                            file_name = file_name.color_num(27)
                         } else if let Some(ext) = path.extension() {
                             let ext = ext.to_str().unwrap();
                             match ext {
@@ -1422,7 +1426,7 @@ struct EntryLen<'a>(&'a Metadata);
 
 impl fmt::Display for EntryLen<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0.is_dir() {
+        if self.0.is_dir() || self.0.is_symlink() {
             "".fmt(fmt)
         } else {
             self.0.len().fmt(fmt)
