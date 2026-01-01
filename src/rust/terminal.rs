@@ -250,7 +250,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         }
                         let path = path.path();
                         let mut file_name = path.file_name().unwrap().to_str().unwrap().default();
-                        if path.is_dir() {
+                        if path.is_symlink() {
+                            file_name = file_name.cyan()
+                        } else if path.is_dir() {
                             file_name = file_name.color_num(27)
                         } else if let Some(ext) = path.extension() {
                             let ext = ext.to_str().unwrap();
@@ -259,10 +261,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 "zip" | "gz" | "rar" | "7z" | "xz" | "jar" => file_name = file_name.red(),
                                 "jpeg" | "jpg" | "png" | "bmp" | "gif"  => file_name = file_name.magenta(),
                                 "txt" | "md" => file_name = file_name.yellow(),
+                                "7b" | "rb" => file_name = file_name.color_num(183),
                                 _ => ()
                             }
-                        } else if path.is_symlink() {
-                            file_name = file_name.cyan()
                         }
                         
                         dir.push_str(&format!("{file_name}"));
