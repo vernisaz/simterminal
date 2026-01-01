@@ -482,6 +482,9 @@ function clearScreen() {
     const prompt = document.createElement("pre")
     prompt.textContent = '$'
     appendContent(cons,prompt)
+    // assure focus
+    const cmd = document.getElementById('commandarea')
+    cmd.focus()
 }
 function upTo3Digits(str,offs) {
     let shift = 0
