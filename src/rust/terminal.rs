@@ -258,6 +258,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 "exe" | "com" | "bat" => file_name = file_name.bright().green(),
                                 "zip" | "gz" | "rar" | "7z" | "xz" | "jar" => file_name = file_name.red(),
                                 "jpeg" | "jpg" | "png" | "bmp" | "gif"  => file_name = file_name.magenta(),
+                                "txt" | "md" => file_name = file_name.yellow(),
                                 _ => ()
                             }
                         } else if path.is_symlink() {
