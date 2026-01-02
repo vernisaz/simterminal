@@ -189,7 +189,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     };
                 if dir.display().to_string().find('*').is_none() {
                     let Ok(paths) = fs::read_dir(&dir) else {
-                        send!("{dir:?} is invalid\u{000C}");
+                        send!("{} is invalid\u{000C}", dir.display().to_string().red());
                         continue
                     };
                     
