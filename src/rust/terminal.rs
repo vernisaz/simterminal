@@ -21,7 +21,7 @@ extern crate simcolor;
 use std::{io::{stdout,self,Read,BufRead,Write,Stdin,BufReader},
     fs::{self,OpenOptions,Metadata},thread,process::{Command,Stdio},
     path::{PathBuf,MAIN_SEPARATOR_STR,Component},collections::HashMap,time::{UNIX_EPOCH},
-    env, fmt,sync::{Arc,Mutex},error::Error,
+    env, fmt,sync::{Arc,Mutex},error::Error,borrow::Cow,
 };
 #[cfg(target_os = "windows")]
 use std::os::windows::prelude::*;
@@ -298,7 +298,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         cwd_new.push(&cmd[1])
                     }
                 }
-                cwd_new = remove_redundant_components(&cwd_new);
+                cwd_new = remove_redundant_components(&cwd_new).to_path_buf();
                 if cwd_new.is_dir() {
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
@@ -567,9 +567,7 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
 
                 s.spawn(|| {
                     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
-                    loop {
-                        let Ok(len) = stdin.read(&mut buffer) else {break};
-                        if len == 0 {break};
+                    while let Ok(len) = stdin.read(&mut buffer) && len > 0 {
                         if len == 1 && buffer[0] == 3 
                             && for_kill.lock().unwrap().kill().is_ok() {
                             send!("^C");
@@ -592,10 +590,7 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
                 
                 //s.spawn(|| {
                     let mut buffer = [0_u8; MAX_BLOCK_LEN]; 
-                    loop {
-                        let Ok(l) = stdout.read(&mut buffer) else {break};
-                        if l == 0 { break } // 
-                        
+                    while let Ok(l) = stdout.read(&mut buffer) && l > 0 {
                         let data = buffer[..l].to_vec();
                         let string = String::from_utf8_lossy(&data);
                         send!{"{}", string};
@@ -655,9 +650,7 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
 
                 s.spawn(|| {
                     let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
-                    loop {
-                        let Ok(len) = stdin.read(&mut buffer) else {break};
-                        if len == 0 {break};
+                    while let Ok(len) = stdin.read(&mut buffer) && len > 0 { 
                         if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
                             send!("^C");
                             break
@@ -678,12 +671,10 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
                 });
                 
                 let mut buffer = [0_u8; MAX_BLOCK_LEN]; 
-                loop {
-                    let Ok(l) = stdout.read(&mut buffer) else {break};
-                    if l == 0 { break } // 
+                while let Ok(l) = stdout.read(&mut buffer) && l > 0 {
                     if out.write(&buffer[..l]).is_err() {
                         break
-                    };
+                    }
                 }
 
                 for_wait.lock().unwrap().wait().unwrap();
@@ -723,9 +714,7 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_
     let handle = thread::spawn(move || {
         let mut buffer = [0_u8; MAX_BLOCK_LEN]; 
         let mut res = vec![];
-        loop {
-            let Ok(l) = stdout.read(&mut buffer) else {break};
-            if l == 0 { break } // 
+        while let Ok(l) = stdout.read(&mut buffer) && l > 0 {
             res.extend_from_slice(&buffer[..l])
         }
         res
@@ -941,7 +930,7 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
     (res, pipe_res,input_file,output_file,append,asynch)
 }
 
-fn expand_wildcard(cwd: &PathBuf, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<String>>
+fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<String>>
     #[cfg(not(target_os = "windows"))]
     let prog = cmd[0].clone();
     #[cfg(target_os = "windows")]
@@ -1329,21 +1318,30 @@ fn longest_common_prefix(strs: Vec<String>) -> String {
     prefix
 }
 
-fn remove_redundant_components(path: &PathBuf) -> PathBuf {
-    let components = path.components().peekable();
-    let mut result = PathBuf::new();
-
+fn remove_redundant_components(path: &PathBuf) -> Cow<'_, PathBuf> {
+    let components = path.components();
+    
+    let mut borrowed = true;
     for component in components {
         match component {
-            Component::CurDir => continue,
-            Component::ParentDir => {
-                result.pop();
-            },
-            _ => result.push(component.as_os_str()),
+            Component::CurDir | Component::ParentDir =>  {borrowed = false; break }
+            _ => ()
         }
     }
+    if borrowed {
+        Cow::Borrowed (path)
+    } else {
+        let mut result = PathBuf::new();
+        for component in path.components() {
+            match component {
+                Component::CurDir =>  continue,
+                Component::ParentDir => {result.pop();},
+                _ => result.push(component.as_os_str()),
+            }
+        }
 
-    result
+       Cow::Owned(result)
+    }
 }
 
 pub fn unescape(string:&impl AsRef<str>) -> String {
