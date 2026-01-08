@@ -597,7 +597,7 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
                 
             });
         }
-        Err(err) => {send!("Can't run: {} in {cwd:?} - {err}\u{000C}", &cmd[0]);},
+        Err(err) => {send!("Can't run: {} in {cwd:?} - {err}\u{000C}", cmd[0].clone().red());},
     }
     res
 }
@@ -670,7 +670,7 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
                 
             });
         }
-        Err(err) => {send!("Can't run: {} in {cwd:?} - {err}\u{000C}", &cmd[0]);},
+        Err(err) => {send!("Can't run: {} in {cwd:?} - {err}\u{000C}", cmd[0].clone().red());},
     }
     res
 }
