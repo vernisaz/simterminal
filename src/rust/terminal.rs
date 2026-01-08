@@ -524,25 +524,19 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
 }
 
 fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env: &HashMap<String, String>) -> Option<Vec<u8>> {
-    let process = 
-        if cmd.len() > 1 {
-                Command::new(&cmd[0])
-             .args(&cmd[1..])
-             .stdout(Stdio::piped())
-             .stdin(Stdio::piped())
-             .stderr(Stdio::piped())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd).spawn()
-         } else {
-            Command::new(&cmd[0])
-             .stdout(Stdio::piped())
-             .stdin(Stdio::piped())
-             .stderr(Stdio::piped())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd).spawn()
-        };
+    let mut binding = Command::new(&cmd[0]);
+    let mut process = 
+        binding
+         .stdout(Stdio::piped())
+         .stdin(Stdio::piped())
+         .stderr(Stdio::piped())
+         .env_clear()
+         .envs(filtered_env)
+         .current_dir(cwd);
+    if cmd.len() > 1 {
+        process = process.args(&cmd[1..])
+    }
+    let process = process.spawn();
     let mut res : Option<Vec<u8>> = None;
     match process {
         Ok(mut process) => {
@@ -609,25 +603,19 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
 }
 
 fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out: &mut dyn Write, filtered_env: &HashMap<String, String>) -> Option<Vec<u8>> {
-    let process = 
-        if cmd.len() > 1 {
-                Command::new(&cmd[0])
-             .args(&cmd[1..])
-             .stdout(Stdio::piped())
-             .stdin(Stdio::piped())
-             .stderr(Stdio::piped())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd).spawn()
-         } else {
-            Command::new(&cmd[0])
-             .stdout(Stdio::piped())
-             .stdin(Stdio::piped())
-             .stderr(Stdio::piped())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd).spawn()
-        };
+    let mut binding = Command::new(&cmd[0]);
+    let mut process = 
+        binding
+         .stdout(Stdio::piped())
+         .stdin(Stdio::piped())
+         .stderr(Stdio::piped())
+         .env_clear()
+         .envs(filtered_env)
+         .current_dir(cwd);
+    if cmd.len() > 1 {
+        process = process.args(&cmd[1..])
+    }
+    let process = process.spawn();
     let mut res : Option<Vec<u8>> = None;
     match process {
         Ok(mut process) => {
@@ -689,25 +677,19 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
 
 
 fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_env: &HashMap<String, String>) -> io::Result<Vec<u8>> {
+    let mut binding = Command::new(&cmd[0]);
     let mut process = 
-        if cmd.len() > 1 {
-                Command::new(&cmd[0])
-             .args(&cmd[1..])
-             .stdout(Stdio::piped())
-             .stdin(Stdio::piped())
-             .stderr(Stdio::piped())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd).spawn()?
-         } else {
-            Command::new(&cmd[0])
-             .stdout(Stdio::piped())
-             .stdin(Stdio::piped())
-             .stderr(Stdio::piped())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd).spawn()?
-        };
+        binding
+         .stdout(Stdio::piped())
+         .stdin(Stdio::piped())
+         .stderr(Stdio::piped())
+         .env_clear()
+         .envs(filtered_env)
+         .current_dir(cwd);
+    if cmd.len() > 1 {
+        process = process.args(&cmd[1..])
+    }
+    let mut process = process.spawn()?;
     let mut stdout = process.stdout.take().unwrap();
     let stderr = process.stderr.take().unwrap();
     let mut stdin_child = process.stdin.take().unwrap();
