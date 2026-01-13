@@ -173,7 +173,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             continue
         }
         send!("{line}"); // \n is coming as part of command
+        //eprintln!("{cmd:?}");
         cmd = cmd.into_iter().map(interpolate_env).collect();
+        //eprintln!("{cmd:?}");
         match cmd[0].as_str() {
             "dir" if cfg!(windows) => {
                 let names_only =  cmd.len() > 1 && cmd[1] == "/b";
@@ -300,6 +302,13 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
                 cwd_new = remove_redundant_components(&cwd_new).to_path_buf();
                 if cwd_new.is_dir() {
+                    //eprintln!("{cwd_new:?} file: {:?}", cwd_new.file_name());
+                    if cwd_new.ends_with("") {
+                        let cwd_new_clone = cwd_new.clone();
+                        let last_component = cwd_new_clone.file_name().unwrap_or_default();
+                        cwd_new.pop();
+                        cwd_new.push(last_component)
+                    }
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
@@ -441,7 +450,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 child_env.insert("_".to_string(), cmd[0].clone());
                 if piped.is_empty() {
                     cmd = expand_wildcard(&cwd, cmd);
+                    //eprintln!("{cmd:?}");
                     cmd = expand_alias(&aliases, cmd);
+                    //eprintln!("{cmd:?}");
                     if in_file.is_empty() && out_file.is_empty() {
                         if bkgr {
                             if let Ok(pid) = call_process_async(&cmd, &cwd,&child_env) {
@@ -1341,10 +1352,11 @@ pub fn unescape(string:&impl AsRef<str>) -> String {
 }
 
 fn esc_string_blanks(string:String) -> String {
-let mut res = String::new();
+    let mut res = String::new();
     for c in string.chars() {
         match c {
             ' ' | '\\' | '"' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '$' => { res.push('\\'); }
+            '\'' => { res.push('\\'); res.push('\\') } // for correct env processing
             _ => ()
         }
         res.push(c);
