@@ -21,7 +21,7 @@ extern crate simcolor;
 use std::{io::{stdout,self,Read,BufRead,Write,Stdin,BufReader},
     fs::{self,OpenOptions,Metadata},thread,process::{Command,Stdio},
     path::{PathBuf,MAIN_SEPARATOR_STR,Component},collections::HashMap,time::{UNIX_EPOCH},
-    env, fmt,sync::{Arc,Mutex},error::Error,borrow::Cow,
+    env, fmt,sync::{Arc,Mutex},error::Error,
 };
 #[cfg(target_os = "windows")]
 use std::os::windows::prelude::*;
@@ -300,15 +300,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         cwd_new.push(&cmd[1])
                     }
                 }
-                cwd_new = remove_redundant_components(&cwd_new).to_path_buf();
+                cwd_new = remove_redundant_components(&cwd_new);
                 if cwd_new.is_dir() {
-                    //eprintln!("{cwd_new:?} file: {:?}", cwd_new.file_name());
-                    if cwd_new.ends_with("") {
-                        let cwd_new_clone = cwd_new.clone();
-                        let last_component = cwd_new_clone.file_name().unwrap_or_default();
-                        cwd_new.pop();
-                        cwd_new.push(last_component)
-                    }
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
@@ -1311,30 +1304,16 @@ fn longest_common_prefix(strs: Vec<String>) -> String {
     prefix
 }
 
-fn remove_redundant_components(path: &PathBuf) -> Cow<'_, PathBuf> {
-    let components = path.components();
-    
-    let mut borrowed = true;
-    for component in components {
+fn remove_redundant_components(path: &PathBuf) -> PathBuf {
+    let mut result = PathBuf::new();
+    for component in path.components() {
         match component {
-            Component::CurDir | Component::ParentDir =>  {borrowed = false; break }
-            _ => ()
+            Component::CurDir =>  continue,
+            Component::ParentDir => {result.pop();},
+            _ => result.push(component),
         }
     }
-    if borrowed {
-        Cow::Borrowed (path)
-    } else {
-        let mut result = PathBuf::new();
-        for component in path.components() {
-            match component {
-                Component::CurDir =>  continue,
-                Component::ParentDir => {result.pop();},
-                _ => result.push(component.as_os_str()),
-            }
-        }
-
-       Cow::Owned(result)
-    }
+    result
 }
 
 pub fn unescape(string:&impl AsRef<str>) -> String {
