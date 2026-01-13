@@ -207,7 +207,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         if !names_only {
                             let metadata = path.metadata()?;
                             let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
-                            let (y,m,d,h,mm,_s,_) = simtime::get_datetime(1970, (metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64 + tz) as u64);
+                            let (y,m,d,h,mm,_s,_) = simtime::get_datetime(1970, (metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64 + tz) as u64);
                             let ro = metadata.permissions().readonly();
                             let link = metadata.is_symlink();
                             #[cfg(target_os = "windows")]
