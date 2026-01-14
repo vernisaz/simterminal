@@ -4,6 +4,8 @@
 Provide a terminal functionality in a Web or a standalone application.
 
 ## How to use
+Your web server must support the websocket CGI extention endpoints. For example, [SimHTTP](https://github.com/vernisaz/simhttp) supports WS-CGI.
+
 1. Implement trait `Terminal`. Only `init` is required. For example:
 ```Rust
 struct Commander ;
@@ -107,7 +109,7 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 	0% { opacity:1 } 75% { opacity:1 } 76% { opacity:0 } 100% { opacity:0 }
 }
 ```
-and HTML can be provided statically, as
+HTML can also be provided statically, like
 ```html
 <section id="terminal-container">
     <div id="terminal">
@@ -128,9 +130,9 @@ and HTML can be provided statically, as
 `cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your desired settings.
 
 6. Customize terminal output by adding clickable links
-Sometimes a terminal output cab contain URLs and other clickable elements as references to source with line numbers. Such
+Sometimes a terminal output can contain URLs and other clickable elements as references to a source code with line numbers. Such
 elements can be wrapped in clickable links in the terminal output. Define function `extendURL` with a string parameter
-returning also a string with possible URLs, for example:
+returning a string with embedded URLs(if applied), for example:
 ```JavaScript
 var fileNameReg
 if (WIN_SERVER)
@@ -149,7 +151,7 @@ function extendURL(lineStr) {
     });
 }
 ```
-Optionally add CSS to avoid colorizing links:
+Optionally add CSS to avoid decoration of links:
 ```CSS
 span+a,pre a {
   color: inherit;
