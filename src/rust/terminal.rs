@@ -44,6 +44,10 @@ pub trait Terminal {
     fn persist_cwd(&mut self, _cwd: &Path) {
         
     }
+    fn greeting(&self, version: &str) -> String {
+        let ver = version.color_num(66).to_string();
+        format!("OS terminal {ver}")
+    }
     fn main_loop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         term_loop(self)
     }
@@ -91,10 +95,9 @@ mod windows {
 }
 fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> {
     let (mut cwd, def_dir, aliases, ver) = term.init();
-    let ver = ver.color_num(66).to_string();
     let mut stdin = io::stdin();
     
-    send!("\nOS terminal {ver}\n") ;// {ver:?} {project} {session}");
+    send!("\n{}\n", &term.greeting(ver)) ;// {ver:?} {project} {session}");
 
     let mut child_env: HashMap<String, String> = env::vars().filter(|(k, _)|
              k != "GATEWAY_INTERFACE"
@@ -434,7 +437,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 
             }
             "ver!" => {
-                send!("{VERSION}/{ver}\u{000C}"); // path
+                send!("{VERSION}\u{000C}"); // path
             }
             _ => {
                 child_env.insert("_".to_string(), cmd[0].clone());
@@ -842,7 +845,7 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                         red_state = RedirectSate::NoRedirect;
                    }
                    CmdState:: QuotedArg | CmdState:: InArg => curr_comp.push(c),
-                   CmdState::Esc => { curr_comp.push(c); state = CmdState:: InArg; }
+                   CmdState::Esc => { curr_comp.push('\\'); curr_comp.push(c); state = CmdState:: InArg; }
                    CmdState::QEsc => { curr_comp.push(c); state = CmdState:: QuotedArg; }
                 }
             }
@@ -1334,7 +1337,7 @@ fn esc_string_blanks(string:String) -> String {
     for c in string.chars() {
         match c {
             ' ' | '\\' | '"' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '$' => { res.push('\\') }
-            '\'' => { res.push('\\'); res.push('\\') } // for correct env processing
+            '\'' => { res.push('\\')}//; res.push('\\') } // for correct env processing
             _ => ()
         }
         res.push(c);
