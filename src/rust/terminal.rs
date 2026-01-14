@@ -890,12 +890,10 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
         }
        
     }
-    match state {
-        CmdState:: Esc => {
-            curr_comp.push('\\');
-            state = CmdState:: InArg;
-        }
-        _ => ()
+    
+    if state == CmdState:: Esc {
+        curr_comp.push('\\');
+        state = CmdState:: InArg;
     }
     match state {
         CmdState:: InArg | CmdState::QuotedArg  => {
@@ -912,7 +910,7 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
             }
         }
         CmdState:: StartArg => (),
-        _ => todo!()
+        _ => todo!() // shouldn't happen ever
     }
     (res, pipe_res,input_file,output_file,append,asynch)
 }
