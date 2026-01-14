@@ -173,9 +173,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             continue
         }
         send!("{line}"); // \n is coming as part of command
-        //eprintln!("{cmd:?}");
-        cmd = cmd.into_iter().map(interpolate_env).collect();
-        //eprintln!("{cmd:?}");
         match cmd[0].as_str() {
             "dir" if cfg!(windows) => {
                 let names_only =  cmd.len() > 1 && cmd[1] == "/b";
@@ -904,7 +901,11 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
         CmdState:: InArg | CmdState::QuotedArg  => {
             match red_state {
                 RedirectSate::NoRedirect => {
-                    res.push(curr_comp);
+                    if state == CmdState:: InArg{
+                        res.push(interpolate_env(curr_comp))
+                    } else {
+                       res.push(curr_comp)
+                    }
                 }
                 RedirectSate::Input => {input_file = String::from(&curr_comp);}
                 RedirectSate::Output => {output_file = String::from(&curr_comp);}
@@ -1334,7 +1335,7 @@ fn esc_string_blanks(string:String) -> String {
     let mut res = String::new();
     for c in string.chars() {
         match c {
-            ' ' | '\\' | '"' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '$' => { res.push('\\'); }
+            ' ' | '\\' | '"' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '$' => { res.push('\\') }
             '\'' => { res.push('\\'); res.push('\\') } // for correct env processing
             _ => ()
         }
