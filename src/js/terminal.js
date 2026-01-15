@@ -51,7 +51,7 @@ function ws_term_connect() {
             var cmdStr
             if (e.data.slice(-1) == '\x07') {
                 cmdStr = e.data.slice(1, -1).trim();
-                beep()
+                term_beep()
             } else {
                 cmdStr = e.data.trim()
             }
@@ -497,4 +497,27 @@ function upTo3Digits(str,offs) {
 }
 function isDigit(char) {
   return char >= '0' && char <= '9'
+}
+var audioCtx
+function term_beep() {
+    if (!audioCtx)
+       audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+  var oscillator = audioCtx.createOscillator();
+  var gainNode = audioCtx.createGain();
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  gainNode.gain.value = 0.3;
+  oscillator.frequency.value = 1200;
+  oscillator.type = 'sine';
+  duration = 155 // ms
+  oscillator.start();
+
+  setTimeout(
+    function() {
+      oscillator.stop();
+    },
+    duration
+  );
 }
