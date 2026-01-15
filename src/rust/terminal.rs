@@ -1267,7 +1267,6 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
                     let n = binding.to_string_lossy();
                     if (!exe || ep.is_executable()) &&
                         platform_starts_with(&n, &part_name) {
-                        //n.starts_with(&part_name) {
                             let n = n.to_string();
                             if ep.is_dir() { Some(n + MAIN_SEPARATOR_STR) } else { Some(n) }
                         } else { None } } )
@@ -1275,9 +1274,7 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
               .collect(),
             Err(_) => vec![],
         };
-    let dir = dir.display().to_string(); // String =String::from(cwd.to_string_lossy());
-    //let cwd = cwd.display().to_string();
-    //let dir = dir.strip_prefix(&cwd).unwrap();
+    let dir = dir.display().to_string();
     //eprintln!("dir: {dir} -> {} for {part_name}", files.len());
     match files.len() {
         0 => format!("{dir}{MAIN_SEPARATOR_STR}{part_name}"),
