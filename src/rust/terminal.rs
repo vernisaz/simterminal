@@ -1200,7 +1200,7 @@ fn interpolate_env(s:String) -> String {
                         res.push(c); state =  EnvExpState::NoInterpol
                     }
                     EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                        let _ = env::var(&curr_env).and_then(|v| Ok(res.push_str(&v))).or_else(|e| if curr_env == "0" {
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
                             Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
                         curr_env.clear();
                         res.push(c);
