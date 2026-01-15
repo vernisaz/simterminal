@@ -1266,7 +1266,8 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
                     let binding = p.file_name();
                     let n = binding.to_string_lossy();
                     if (!exe || ep.is_executable()) &&
-                        n.starts_with(&part_name) {
+                        platform_starts_with(&n, &part_name) {
+                        //n.starts_with(&part_name) {
                             let n = n.to_string();
                             if ep.is_dir() { Some(n + MAIN_SEPARATOR_STR) } else { Some(n) }
                         } else { None } } )
@@ -1283,6 +1284,19 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
         1 => format!("{dir}{MAIN_SEPARATOR_STR}{}",&files[0]),
         _ => format!("{dir}{MAIN_SEPARATOR_STR}{}\x07",longest_common_prefix(files))
     }
+}
+
+#[cfg(target_os = "windows")]
+fn starts_with_ignore_case_ascii(s: &str, prefix: &str) -> bool {
+    s.len() >= prefix.len() &&
+    s[..prefix.len()].eq_ignore_ascii_case(prefix)
+}
+
+fn platform_starts_with(s: &str, prefix: &str) -> bool {
+    #[cfg(target_os = "windows")]
+    { starts_with_ignore_case_ascii(s, prefix) }
+    #[cfg(unix)]
+    s.starts_with(prefix)
 }
 
 fn longest_common_prefix(strs: Vec<String>) -> String {
