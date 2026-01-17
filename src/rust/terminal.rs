@@ -146,6 +146,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         let expand = line.ends_with('\t');
         let (mut cmd, piped, in_file, out_file, appnd, bkgr) = parse_cmd(&line.trim());
         if cmd.is_empty() { continue };
+        //eprintln!("{cmd:?}");
         if expand {
             let ext = esc_string_blanks(extend_name(if out_file.is_empty() {
                 if in_file.is_empty() {&cmd[cmd.len() - 1]} else { &in_file} } else {&out_file}, &cwd, cmd.len() == 1));
@@ -745,6 +746,7 @@ enum CmdState {
     InArg,
     Esc,
     QEsc,
+    ApostrInArg, ApEsc,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -817,11 +819,15 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                         state = CmdState:: InArg;
                         curr_comp.push(c)
                     } 
-                    CmdState:: QuotedArg => {
+                    CmdState:: QuotedArg | CmdState:: ApostrInArg => {
                         curr_comp.push(c);
                     }
                     CmdState:: QEsc => {
                         state = CmdState:: QuotedArg;
+                        curr_comp.push(c)
+                    }
+                    CmdState:: ApEsc => {
+                        state = CmdState:: ApostrInArg;
                         curr_comp.push(c)
                     } 
                 }
@@ -844,9 +850,15 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                         }
                         red_state = RedirectSate::NoRedirect;
                    }
-                   CmdState:: QuotedArg | CmdState:: InArg => curr_comp.push(c),
+                   CmdState:: QuotedArg  => curr_comp.push(c),
+                   CmdState:: InArg => {if c == '\'' {state = CmdState:: ApostrInArg} curr_comp.push(c) }
+                   CmdState:: ApostrInArg => {if c == '\'' {state = CmdState:: InArg} curr_comp.push(c) }
                    CmdState::Esc => { curr_comp.push('\\'); curr_comp.push(c); state = CmdState:: InArg; }
                    CmdState::QEsc => { curr_comp.push(c); state = CmdState:: QuotedArg; }
+                   CmdState:: ApEsc => {
+                        state = CmdState:: ApostrInArg;
+                        curr_comp.push(c)
+                    }
                 }
             }
             '\\' => {
@@ -858,6 +870,9 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                     CmdState:: QuotedArg => {
                         state = CmdState:: QEsc;
                     }
+                    CmdState:: ApostrInArg => {
+                        state = CmdState:: ApEsc;
+                    }
                     CmdState:: Esc => {
                         state = CmdState:: InArg;
                         curr_comp.push(c);
@@ -865,6 +880,10 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                     CmdState:: QEsc => {
                         state = CmdState:: QuotedArg;
                         curr_comp.push(c);
+                    }
+                    CmdState:: ApEsc => {
+                        state = CmdState:: ApostrInArg;
+                        curr_comp.push(c)
                     }
                 }
             }
@@ -875,7 +894,7 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                        state = CmdState:: InArg;
                        curr_comp.push(other);
                    }
-                   CmdState:: QuotedArg | CmdState:: InArg=> {
+                   CmdState:: QuotedArg | CmdState:: InArg | CmdState:: ApostrInArg => {
                        curr_comp.push(other);
                    }
                    CmdState:: Esc => {
@@ -888,6 +907,11 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                         curr_comp.push('\\');
                         curr_comp.push(c);
                    }
+                   CmdState:: ApEsc => {
+                        state = CmdState:: ApostrInArg;
+                        curr_comp.push('\\');
+                        curr_comp.push(c)
+                    }
                 }
             }
         }
@@ -897,12 +921,18 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
     if state == CmdState:: Esc {
         curr_comp.push('\\');
         state = CmdState:: InArg;
+    } else if state == CmdState:: ApEsc {
+        curr_comp.push('\\');
+        state = CmdState:: ApostrInArg;
+    } else if state == CmdState:: QEsc {
+        curr_comp.push('\\');
+        state = CmdState:: QuotedArg;
     }
     match state {
-        CmdState:: InArg | CmdState::QuotedArg  => {
+        CmdState:: InArg | CmdState::QuotedArg | CmdState:: ApostrInArg => {
             match red_state {
                 RedirectSate::NoRedirect => {
-                    if state == CmdState:: InArg{
+                    if state == CmdState:: InArg || state == CmdState:: ApostrInArg {
                         res.push(interpolate_env(curr_comp))
                     } else {
                        res.push(curr_comp)
