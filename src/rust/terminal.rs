@@ -192,7 +192,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     };
                 if dir.display().to_string().find('*').is_none() {
                     let Ok(paths) = fs::read_dir(&dir) else {
-                        send!("{} is invalid\u{000C}", dir.display().to_string().red());
+                        send!("{} is invalid\u{000C}", dir.to_string_lossy().red());
                         continue
                     };
                     
@@ -252,7 +252,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             dir.push_str( &format!("{:8}{m:>2}/{d:>2}/{y:4}  {h:>2}:{mm:02} {}M {:>14} ",' ', pm, EntryLen(&metadata)));
                         }
                         let path = path.path();
-                        let mut file_name = path.file_name().unwrap().to_str().unwrap().default();
+                        let mut file_name = path.file_name().unwrap().display().to_string().default();
                         if path.is_symlink() {
                             file_name = file_name.cyan()
                         } else if path.is_dir() {
@@ -268,7 +268,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 _ => ()
                             }
                         }
-                        
                         dir.push_str(&format!("{file_name}"));
                         dir.push('\n');
                     }
