@@ -37,6 +37,11 @@ const MAX_BLOCK_LEN : usize = 4096;
 const DIR_COLOR: u8 = 41;
 
 pub trait Terminal {
+    /// returns values for terminal session as
+    /// - current working directory
+    /// - home directory
+    /// - command aliases
+    /// - version
     fn init(&self) -> (PathBuf, PathBuf, HashMap<String,Vec<String>>,&str) ;
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
