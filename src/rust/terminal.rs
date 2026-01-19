@@ -182,6 +182,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             continue
         }
         send!("{line}"); // \n is coming as part of command
+        if piped.is_empty() { // think on condition to do that more
+            cmd = expand_alias(&aliases, cmd);
+        }
         match cmd[0].as_str() {
             "dir" if cfg!(windows) => {
                 let names_only =  cmd.len() > 1 && cmd[1] == "/b";
@@ -448,9 +451,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 child_env.insert("_".to_string(), cmd[0].clone());
                 if piped.is_empty() {
                     cmd = expand_wildcard(&cwd, cmd);
-                    //eprintln!("{cmd:?}");
-                    cmd = expand_alias(&aliases, cmd);
-                    //eprintln!("{cmd:?}");
                     if in_file.is_empty() && out_file.is_empty() {
                         if bkgr {
                             if let Ok(pid) = call_process_async(&cmd, &cwd,&child_env) {
