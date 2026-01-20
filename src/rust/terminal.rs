@@ -312,6 +312,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 if cwd_new.is_dir() {
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
+                    child_env.insert("PWD".to_string(), cwd.display().to_string());
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
                 } else {
                     send!("cd: no such file or directory: {}\u{000C}", cwd_new.to_string_lossy().color_num(161));
