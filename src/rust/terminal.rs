@@ -167,14 +167,14 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 if !out_file.is_empty() {
                     if !in_file.is_empty() {
                         beg.push('<');
-                        beg.push_str(&in_file);
+                        beg.push_str(&in_file)
                     }
                     if appnd {
-                        beg.push('>');
+                        beg.push('>')
                     }
                     beg.push('>');
                 } else if !in_file.is_empty() {
-                    beg.push('<');
+                    beg.push('<')
                 }
             } 
             //eprintln!("line to send {} {ext}", beg);
@@ -268,8 +268,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         } else if let Some(ext) = path.extension() {
                             let ext = ext.to_str().unwrap();
                             match ext {
-                                "exe" | "com" | "bat" => file_name = file_name.bright().green(),
-                                "zip" | "gz" | "rar" | "7z" | "xz" | "jar" => file_name = file_name.red(),
+                                "exe" | "com" | "bat" | "msi"  => file_name = file_name.bright().green(),
+                                "zip" | "gz" | "rar" | "7z" | "xz" | "jar" | "tgz" | "bz2" | "war" => file_name = file_name.red(),
                                 "jpeg" | "jpg" | "png" | "bmp" | "gif"  => file_name = file_name.magenta(),
                                 "txt" | "md" => file_name = file_name.yellow(),
                                 "7b" | "rb" => file_name = file_name.color_num(183),
@@ -277,7 +277,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             }
                         }
                         dir.push_str(&format!("{file_name}"));
-                        dir.push('\n');
+                        dir.push('\n')
                     }
                     send!("{dir}\u{000C}");
                 } else {
@@ -325,7 +325,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
                 let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
-                   file = cwd.join(file); 
+                   file = cwd.join(file)
                 }
                 send!("{} file(s) deleted\u{000C}", DeferData::from(&file).do_op(Op::DEL).unwrap());
             }
