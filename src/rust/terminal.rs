@@ -1352,7 +1352,7 @@ fn longest_common_prefix(strs: Vec<String>) -> String {
     prefix
 }
 
-fn remove_redundant_components(path: &PathBuf) -> PathBuf {
+fn remove_redundant_components(path: &Path) -> PathBuf {
     let mut result = PathBuf::new();
     for component in path.components() {
         match component {
