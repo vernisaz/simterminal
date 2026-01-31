@@ -99,7 +99,7 @@ mod windows {
     }
 }
 fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> {
-    let (mut cwd, def_dir, aliases, ver) = term.init();
+    let (mut cwd, def_dir, mut aliases, ver) = term.init();
     let mut stdin = io::stdin();
     
     send!("\n{}\n", &term.greeting(ver)) ;// {ver:?} {project} {session}");
@@ -450,8 +450,14 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     for (alias,extension) in &aliases {
                         send!("alias {alias}='{}'\n", extension.join(" "));
                     }
-                    send!("\u{000C}");
+                } else  if cmd.len() == 2 && let Some((name,value)) = cmd.get(1).unwrap().split_once('=') {
+                    let name = name.trim();
+                    let value = value.trim_matches(['"', '\'', ' ']);
+                    aliases.insert(name.to_string(),value.split_ascii_whitespace().map(str::to_string).collect());
+                } else {
+                    send!("Invalid number of arguments of alias");
                 }
+                send!("\u{000C}");
             }
             "ver!" => {
                 send!("{VERSION}\u{000C}"); // path
@@ -998,7 +1004,17 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<Str
 
 fn expand_alias(aliases: &HashMap<String,Vec<String>>, mut cmd: Vec<String>) -> Vec<String> {
     match aliases.get(&cmd[0]) {
-        Some(expand) => { cmd.splice(0..1, expand.clone()); cmd }
+        Some(expand) => {
+            let mut interpolated: Vec<String> = Vec::new();
+            interpolated.reserve(expand.len());
+            let mut expand = expand.into_iter();
+            if let Some(element) = expand.next() {
+                interpolated.push(element.to_string());
+                for element in expand {
+                    interpolated.push(interpolate_env(element.to_string()))
+                }
+            }
+            cmd.splice(0..1, interpolated); cmd }
         _ => {if cmd[0].starts_with("\\") {cmd[0] = cmd[0][1..].to_owned();} cmd}
     }
 }
