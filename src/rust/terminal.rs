@@ -1,3 +1,4 @@
+#![allow(clippy::unit_arg)]
 //! terminal web socket CGI
 #[macro_export]
 macro_rules! send {
@@ -1005,9 +1006,8 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<Str
 fn expand_alias(aliases: &HashMap<String,Vec<String>>, mut cmd: Vec<String>) -> Vec<String> {
     match aliases.get(&cmd[0]) {
         Some(expand) => {
-            let mut interpolated: Vec<String> = Vec::new();
-            interpolated.reserve(expand.len());
-            let mut expand = expand.into_iter();
+            let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
+            let mut expand = expand.iter();
             if let Some(element) = expand.next() {
                 interpolated.push(element.to_string());
                 for element in expand {
