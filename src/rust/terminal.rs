@@ -445,6 +445,14 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 send!("\u{000C}");
                 
             }
+            "alias" => {
+                if cmd.len() == 1 {
+                    for (alias,extension) in &aliases {
+                        send!("alias {alias}='{}'\n", extension.join(" "));
+                    }
+                    send!("\u{000C}");
+                }
+            }
             "ver!" => {
                 send!("{VERSION}\u{000C}"); // path
             }
