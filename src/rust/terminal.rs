@@ -511,6 +511,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                  let _ =fs::write(&out_file, res);
                                  send!("\u{000C}");
                             }
+                        } else {
+                            send!("Can't read {}\u{000C}", in_file.display().to_string().red());
                         }
                     }
                 } else {
