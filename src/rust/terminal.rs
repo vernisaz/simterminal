@@ -316,7 +316,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     child_env.insert("PWD".to_string(), cwd.display().to_string());
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
                 } else {
-                    send!("cd: no such file or directory: {}\u{000C}", cwd_new.to_string_lossy().color_num(161));
+                    send!("cd: no such directory: {}\u{000C}", cwd_new.to_string_lossy().color_num(161));
                 }
             }
             "del" if cfg!(windows) => {
