@@ -17,7 +17,6 @@ var fon_color = ''
 var fon_back = ''
 var dim = false;
 /*  */            
-            
 function clearColorAttributes() {
     /* */
     bold = false
