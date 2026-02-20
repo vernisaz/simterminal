@@ -365,6 +365,7 @@ function appendContent(term,el) {
 }
 
 function sendCommand(cmd) {
+    var subCommand = false;
    switch (event.key) {
     case 'Enter':
          if (termWskt && termWskt.readyState===WebSocket.OPEN) {
@@ -425,6 +426,22 @@ function sendCommand(cmd) {
             cmd.textContent = '\xa0'
         }
         return
+    case 'PageUp':
+        if (commandBuffer.length) {
+            subCommand = true
+           cmdBufPos--
+           if (cmdBufPos < 0)
+              cmdBufPos = commandBuffer.length-1
+        }
+        break
+    case 'PageDown':
+        if (commandBuffer.length) {
+            subCommand = true
+           cmdBufPos++
+           if (cmdBufPos > commandBuffer.length-1)
+              cmdBufPos = 0 
+        }
+        break
     default:
        if (event.ctrlKey) {
           if (event.keyCode == 67) {
@@ -441,7 +458,10 @@ function sendCommand(cmd) {
        return
     }
     if (commandBuffer.length) {
-	 	cmd.innerText = commandBuffer[cmdBufPos]
+        if (subCommand)
+            cmd.innerText += commandBuffer[cmdBufPos]
+        else
+	 	    cmd.innerText = commandBuffer[cmdBufPos]
 	    const range = document.createRange();
         const selection = window.getSelection();
 
