@@ -31,7 +31,7 @@ impl Terminal for Commander {
     }
 }
 ```
-2. Call `main_loop` in the `main` app function, like:
+2. Call `main_loop` in the `main` endpoint function, like:
 ```Rust
 fn main() {
     let _ = Commander.main_loop();
@@ -109,7 +109,7 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 	0% { opacity:1 } 75% { opacity:1 } 76% { opacity:0 } 100% { opacity:0 }
 }
 ```
-HTML can also be provided statically, like
+HTML can be provided statically as,
 ```html
 <section id="terminal-container">
     <div id="terminal">
@@ -129,10 +129,12 @@ HTML can also be provided statically, like
 
 `cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your desired settings.
 
+`terminal.js` should be stored in _./html/js_ directory.
+
 6. Customize terminal output by adding clickable links
 Sometimes a terminal output can contain URLs and other clickable elements as references to a source code with line numbers. Such
 elements can be wrapped in clickable links in the terminal output. Define function `extendURL` with a string parameter
-returning a string with embedded URLs(if applied), for example:
+returning a string with embedded URLs (if applied), for example:
 ```JavaScript
 var fileNameReg
 if (WIN_SERVER)
