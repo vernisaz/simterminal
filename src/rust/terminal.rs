@@ -4,7 +4,7 @@
 macro_rules! send {
     ($($arg:tt)*) => (
         //use std::io::Write;
-        
+
         let s = format!($($arg)* ) ;
         /*let l = s.len();
         println!("{l}");*/
@@ -15,25 +15,33 @@ macro_rules! send {
     )
 }
 
-extern crate simweb;
-extern crate simtime;
 extern crate simcolor;
+extern crate simtime;
+extern crate simweb;
 
-use std::{io::{stdout,self,Read,BufRead,Write,Stdin,BufReader},
-    fs::{self,OpenOptions,Metadata},thread,process::{Command,Stdio},
-    path::{PathBuf,MAIN_SEPARATOR_STR,Component},collections::HashMap,time::{UNIX_EPOCH},
-    env, fmt,sync::{Arc,Mutex},error::Error,
-};
 #[cfg(target_os = "windows")]
 use std::os::windows::prelude::*;
+use std::{
+    collections::HashMap,
+    env,
+    error::Error,
+    fmt,
+    fs::{self, Metadata, OpenOptions},
+    io::{self, BufRead, BufReader, Read, Stdin, Write, stdout},
+    path::{Component, MAIN_SEPARATOR_STR, PathBuf},
+    process::{Command, Stdio},
+    sync::{Arc, Mutex},
+    thread,
+    time::UNIX_EPOCH,
+};
 
-use simcolor::{Colorized};
+use simcolor::Colorized;
 
 pub const VERSION: &str = env!("VERSION");
 
-const TERMINAL_NAME : &str = "sim/terminal";
+const TERMINAL_NAME: &str = "sim/terminal";
 
-const MAX_BLOCK_LEN : usize = 4096;
+const MAX_BLOCK_LEN: usize = 4096;
 
 const DIR_COLOR: u8 = 41;
 
@@ -43,13 +51,11 @@ pub trait Terminal {
     /// - home directory
     /// - command aliases
     /// - version
-    fn init(&self) -> (PathBuf, PathBuf, HashMap<String,Vec<String>>,&str) ;
+    fn init(&self) -> (PathBuf, PathBuf, HashMap<String, Vec<String>>, &str);
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
-    fn persist_cwd(&mut self, _cwd: &Path) {
-        
-    }
+    fn persist_cwd(&mut self, _cwd: &Path) {}
     fn greeting(&self, version: &str) -> String {
         let ver = version.color_num(66).to_string();
         format!("OS terminal {ver}")
@@ -93,7 +99,7 @@ mod windows {
     impl IsExecutable for Path {
         fn is_executable(&self) -> bool {
             let Ok(metadata) = self.metadata() else {
-                return false
+                return false;
             };
             metadata.is_dir() || self.extension().is_some_and(|s| s == "exe" || s == "bat")
         }
@@ -102,69 +108,100 @@ mod windows {
 fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> {
     let (mut cwd, def_dir, mut aliases, ver) = term.init();
     let mut stdin = io::stdin();
-    
-    send!("\n{}\n", &term.greeting(ver)) ;// {ver:?} {project} {session}");
 
-    let mut child_env: HashMap<String, String> = env::vars().filter(|(k, _)|
-             k != "GATEWAY_INTERFACE"
-             && k != "QUERY_STRING"
-             && k != "REMOTE_ADDR"
-             && k != "REMOTE_HOST"
-             && k != "REQUEST_METHOD"
-             && k != "SERVER_PROTOCOL"
-             && k != "SERVER_SOFTWARE"
-             && k != "PATH_INFO"
-             && k != "PATH_TRANSLATED"
-             && k != "SCRIPT_NAME"
-             && k != "REMOTE_IDENT"
-             && k != "SERVER_NAME"
-             && k != "SERVER_PORT"
-             && k != "CONTENT_LENGTH"
-             && k != "CONTENT_TYPE"
-             && k != "AUTH_TYPE"
-             && k != "REMOTE_USER"
-             && !k.starts_with("HTTP_")
-             && k != "_"
-             && k != "PWD").collect();
+    send!("\n{}\n", &term.greeting(ver)); // {ver:?} {project} {session}");
+
+    let mut child_env: HashMap<String, String> = env::vars()
+        .filter(|(k, _)| {
+            k != "GATEWAY_INTERFACE"
+                && k != "QUERY_STRING"
+                && k != "REMOTE_ADDR"
+                && k != "REMOTE_HOST"
+                && k != "REQUEST_METHOD"
+                && k != "SERVER_PROTOCOL"
+                && k != "SERVER_SOFTWARE"
+                && k != "PATH_INFO"
+                && k != "PATH_TRANSLATED"
+                && k != "SCRIPT_NAME"
+                && k != "REMOTE_IDENT"
+                && k != "SERVER_NAME"
+                && k != "SERVER_PORT"
+                && k != "CONTENT_LENGTH"
+                && k != "CONTENT_TYPE"
+                && k != "AUTH_TYPE"
+                && k != "REMOTE_USER"
+                && !k.starts_with("HTTP_")
+                && k != "_"
+                && k != "PWD"
+        })
+        .collect();
     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
     // a decision about supporting colors can be done in init()
-    let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
+    let mut buffer = [0_u8; MAX_BLOCK_LEN];
     let mut prev: Option<Vec<u8>> = None;
     loop {
         let vec_buf = match prev {
             None => {
-                 let Ok(len) = stdin.read(&mut buffer) else {break};
-                 if len == 0 {break};
-                 &buffer[0..len]
+                let Ok(len) = stdin.read(&mut buffer) else {
+                    break;
+                };
+                if len == 0 {
+                    break;
+                };
+                &buffer[0..len]
             }
-            Some(ref vec) => vec
+            Some(ref vec) => vec,
         };
-        if vec_buf.len() >= 4 && vec_buf[0] == 255 && vec_buf[1] == 255 &&
-                    vec_buf[2] == 255 && vec_buf[3] == 4 {
-                        break
+        if vec_buf.len() >= 4
+            && vec_buf[0] == 255
+            && vec_buf[1] == 255
+            && vec_buf[2] == 255
+            && vec_buf[3] == 4
+        {
+            break;
         }
         if vec_buf.len() == 1 && vec_buf[0] == 3 {
             send!("^C\n");
-            continue
+            continue;
         }
         let line = String::from_utf8_lossy(vec_buf).into_owned();
         prev = None;
         let expand = line.ends_with('\t');
         let (mut cmd, piped, in_file, out_file, appnd, bkgr) = parse_cmd(&line.trim());
-        if cmd.is_empty() { continue };
+        if cmd.is_empty() {
+            continue;
+        };
         //eprintln!("{cmd:?}");
         if expand {
-            let ext = esc_string_blanks(extend_name(if out_file.is_empty() {
-                if in_file.is_empty() {&cmd[cmd.len() - 1]} else { &in_file} } else {&out_file}, &cwd, cmd.len() == 1));
-            let mut beg = 
-            piped.into_iter().fold(String::new(), |a,e| a + &e.into_iter().reduce(|a2,e2| a2 + " " +
-                &esc_string_blanks(e2)).unwrap() + "|" );
-           
+            let ext = esc_string_blanks(extend_name(
+                if out_file.is_empty() {
+                    if in_file.is_empty() {
+                        &cmd[cmd.len() - 1]
+                    } else {
+                        &in_file
+                    }
+                } else {
+                    &out_file
+                },
+                &cwd,
+                cmd.len() == 1,
+            ));
+            let mut beg = piped.into_iter().fold(String::new(), |a, e| {
+                a + &e
+                    .into_iter()
+                    .reduce(|a2, e2| a2 + " " + &esc_string_blanks(e2))
+                    .unwrap()
+                    + "|"
+            });
+
             if cmd.len() > 1 {
                 if out_file.is_empty() && in_file.is_empty() {
                     cmd.pop();
                 }
-                beg += &cmd.into_iter().reduce(|a,e| a + " " + &esc_string_blanks(e) ).unwrap();
+                beg += &cmd
+                    .into_iter()
+                    .reduce(|a, e| a + " " + &esc_string_blanks(e))
+                    .unwrap();
                 if !out_file.is_empty() {
                     if !in_file.is_empty() {
                         beg.push('<');
@@ -177,53 +214,60 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 } else if !in_file.is_empty() {
                     beg.push('<')
                 }
-            } 
+            }
             //eprintln!("line to send {} {ext}", beg);
-            send!("\r{} {ext}", beg);// &line[..pos]);
-            continue
+            send!("\r{} {ext}", beg); // &line[..pos]);
+            continue;
         }
         send!("{line}"); // \n is coming as part of command
-        if piped.is_empty() { // think on condition to do that more
+        if piped.is_empty() {
+            // think on condition to do that more
             cmd = expand_alias(&aliases, cmd);
         }
         match cmd[0].as_str() {
             "dir" if cfg!(windows) => {
-                let names_only =  cmd.len() > 1 && cmd[1] == "/b";
-                let mut dir = 
-                    if cmd.len() == if names_only {2} else {1} {
-                        cwd.clone()
-                    } else {
-                        let mut dir = PathBuf::from(&cmd[if names_only {2} else {1}]);
-                        if !dir.has_root() {
-                           dir = cwd.join(dir); 
-                        } 
-                        dir
-                    };
+                let names_only = cmd.len() > 1 && cmd[1] == "/b";
+                let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
+                    cwd.clone()
+                } else {
+                    let mut dir = PathBuf::from(&cmd[if names_only { 2 } else { 1 }]);
+                    if !dir.has_root() {
+                        dir = cwd.join(dir);
+                    }
+                    dir
+                };
                 if dir.display().to_string().find('*').is_none() {
                     let Ok(paths) = fs::read_dir(&dir) else {
                         send!("{} is invalid\u{000C}", dir.to_string_lossy().red());
-                        continue
+                        continue;
                     };
-                    
+
                     let mut dir = format!("    Directory: {}\n\n", dir.display());
                     if !names_only {
                         dir.push_str("Mode                 LastWriteTime         Length Name\n");
                         dir.push_str("----                 -------------         ------ ----\n");
                     }
                     for path in paths {
-                        let Ok(path) = path else {
-                            continue
-                        };
+                        let Ok(path) = path else { continue };
                         if !names_only {
                             let metadata = path.metadata()?;
                             let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
-                            let (y,m,d,h,mm,_s,_) = simtime::get_datetime(1970, (metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64 + tz) as u64);
+                            let (y, m, d, h, mm, _s, _) = simtime::get_datetime(
+                                1970,
+                                (metadata
+                                    .modified()
+                                    .unwrap()
+                                    .duration_since(UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs() as i64
+                                    + tz) as u64,
+                            );
                             let ro = metadata.permissions().readonly();
                             let link = metadata.is_symlink();
                             #[cfg(target_os = "windows")]
                             const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
                             #[cfg(target_os = "windows")]
-                            let archive =  (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0;
+                            let archive = (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0;
                             #[cfg(unix)]
                             let archive = false;
                             if metadata.is_dir() {
@@ -231,37 +275,53 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             } else {
                                 dir.push('-')
                             }
-                            dir.push(if archive {'a'} else {'-'});
-                            if ro { dir.push('r') } else { dir.push('-') }
+                            dir.push(if archive { 'a' } else { '-' });
+                            if ro {
+                                dir.push('r')
+                            } else {
+                                dir.push('-')
+                            }
                             #[cfg(target_os = "windows")]
                             {
                                 let attributes = metadata.file_attributes();
                                 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
                                 const FILE_ATTRIBUTE_SYSTEM: u32 = 0x00000004;
-                                
-                                if (attributes & FILE_ATTRIBUTE_HIDDEN) > 0 { // Check if the hidden attribute is set.
+
+                                if (attributes & FILE_ATTRIBUTE_HIDDEN) > 0 {
+                                    // Check if the hidden attribute is set.
                                     dir.push('h')
                                 } else {
                                     dir.push('-')
                                 }
-                                if (attributes & FILE_ATTRIBUTE_SYSTEM) > 0 { // Check if the system attribute is set.
+                                if (attributes & FILE_ATTRIBUTE_SYSTEM) > 0 {
+                                    // Check if the system attribute is set.
                                     dir.push('s')
                                 } else {
                                     dir.push('-')
                                 }
                             }
-                            if link { dir.push('l') } else { dir.push('-') }
-                            let (h,pm) = match h {
-                                0 => (12,'A'),
-                                h @ 1..12 => (h,'A'),
-                                12  => (12,'P'),
-                                h @ 13..24 => (h-12,'P'),
-                                _ => unreachable!()
+                            if link {
+                                dir.push('l')
+                            } else {
+                                dir.push('-')
+                            }
+                            let (h, pm) = match h {
+                                0 => (12, 'A'),
+                                h @ 1..12 => (h, 'A'),
+                                12 => (12, 'P'),
+                                h @ 13..24 => (h - 12, 'P'),
+                                _ => unreachable!(),
                             };
-                            dir.push_str( &format!("{:8}{m:>2}/{d:>2}/{y:4}  {h:>2}:{mm:02} {}M {:>14} ",' ', pm, EntryLen(&metadata)));
+                            dir.push_str(&format!(
+                                "{:8}{m:>2}/{d:>2}/{y:4}  {h:>2}:{mm:02} {}M {:>14} ",
+                                ' ',
+                                pm,
+                                EntryLen(&metadata)
+                            ));
                         }
                         let path = path.path();
-                        let mut file_name = path.file_name().unwrap().display().to_string().default();
+                        let mut file_name =
+                            path.file_name().unwrap().display().to_string().default();
                         if path.is_symlink() {
                             file_name = file_name.cyan()
                         } else if path.is_dir() {
@@ -269,12 +329,17 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         } else if let Some(ext) = path.extension() {
                             let ext = ext.to_str().unwrap();
                             match ext {
-                                "exe" | "com" | "bat" | "msi"  => file_name = file_name.bright().green(),
-                                "zip" | "gz" | "rar" | "7z" | "xz" | "jar" | "tgz" | "bz2" | "war" => file_name = file_name.red(),
-                                "jpeg" | "jpg" | "png" | "bmp" | "gif"  => file_name = file_name.magenta(),
+                                "exe" | "com" | "bat" | "msi" => {
+                                    file_name = file_name.bright().green()
+                                }
+                                "zip" | "gz" | "rar" | "7z" | "xz" | "jar" | "tgz" | "bz2"
+                                | "war" => file_name = file_name.red(),
+                                "jpeg" | "jpg" | "png" | "bmp" | "gif" => {
+                                    file_name = file_name.magenta()
+                                }
                                 "txt" | "md" => file_name = file_name.yellow(),
                                 "7b" | "rb" => file_name = file_name.color_num(183),
-                                _ => ()
+                                _ => (),
                             }
                         }
                         dir.push_str(&format!("{file_name}"));
@@ -286,20 +351,20 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     let mut res = String::new();
                     dir.pop();
                     for arg in data.src_wild {
-                        dir.push(format!{"{}{arg}{}",&data.src_before, &data.src_after});
+                        dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
                         let path = dir.as_path().file_name();
                         res.push_str(path.unwrap().to_str().unwrap());
                         res.push('\n');
                         dir.pop();
                     }
-                    send!("{res}\u{000C}"); 
+                    send!("{res}\u{000C}");
                 }
             }
             "pwd" => {
                 send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
             }
             "cd" => {
-                let mut cwd_new ;
+                let mut cwd_new;
                 if cmd.len() == 1 {
                     cwd_new = def_dir.clone();
                 } else {
@@ -316,28 +381,34 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     child_env.insert("PWD".to_string(), cwd.display().to_string());
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
                 } else {
-                    send!("cd: no such directory: {}\u{000C}", cwd_new.to_string_lossy().color_num(161));
+                    send!(
+                        "cd: no such directory: {}\u{000C}",
+                        cwd_new.to_string_lossy().color_num(161)
+                    );
                 }
             }
             "del" if cfg!(windows) => {
                 if cmd.len() == 1 {
                     send!("No name specified\u{000C}");
-                    continue
+                    continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
-                   file = cwd.join(file)
+                    file = cwd.join(file)
                 }
-                send!("{} file(s) deleted\u{000C}", DeferData::from(&file).do_op(Op::DEL).unwrap());
+                send!(
+                    "{} file(s) deleted\u{000C}",
+                    DeferData::from(&file).do_op(Op::DEL).unwrap()
+                );
             }
             "type" if cfg!(windows) => {
                 if cmd.len() == 1 {
                     send!("No name specified\u{000C}");
-                    continue
+                    continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
-                   file = cwd.join(file); 
+                    file = cwd.join(file);
                 }
                 let _ = DeferData::from(&file).do_op(Op::TYP);
                 send!("\u{000C}");
@@ -345,28 +416,40 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             "copy" | "ren" if cfg!(windows) => {
                 if cmd.len() < 3 {
                     send!("Source and destination have to be provided\u{000C}");
-                    continue
+                    continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
-                   file = cwd.join(file); 
+                    file = cwd.join(file);
                 }
                 let mut file_to = PathBuf::from(&cmd[2]);
                 if !file_to.has_root() {
-                   file_to = cwd.join(file_to); 
+                    file_to = cwd.join(file_to);
                 }
                 match cmd[0].as_str() {
-                    "copy" => {send!("{} file(s) copied\u{000C}", DeferData::from_to(&file, &file_to).do_op(Op::CPY).unwrap());},
-                    "ren" => {send!("{} file(s) renamed\u{000C}", DeferData::from_to(&file, &file_to).do_op(Op::REN).unwrap());},
-                    _ => unreachable!()
+                    "copy" => {
+                        send!(
+                            "{} file(s) copied\u{000C}",
+                            DeferData::from_to(&file, &file_to).do_op(Op::CPY).unwrap()
+                        );
+                    }
+                    "ren" => {
+                        send!(
+                            "{} file(s) renamed\u{000C}",
+                            DeferData::from_to(&file, &file_to).do_op(Op::REN).unwrap()
+                        );
+                    }
+                    _ => unreachable!(),
                 }
             }
             "echo" if cfg!(windows) => {
                 if cmd.len() == 2 {
-                    if !out_file .is_empty() /*None*/ {
+                    if !out_file.is_empty()
+                    /*None*/
+                    {
                         let mut file = PathBuf::from(&out_file);
                         if !file.has_root() {
-                           file = cwd.join(file); 
+                            file = cwd.join(file);
                         }
                         fs::write(file, &cmd[1])?;
                         send!("\u{000C}");
@@ -378,83 +461,98 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             "md" | "mkdir" if cfg!(windows) => {
                 if cmd.len() == 1 {
                     send!("No name specified\u{000C}");
-                    continue
+                    continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
-                   file = cwd.join(file); 
+                    file = cwd.join(file);
                 }
                 match fs::create_dir(file) {
-                    Ok(_) => {send!("{} created\u{000C}", cmd[1]);},
-                    Err(err) => {send!("Err: {err} in {} creation\u{000C}", cmd[1]);},
+                    Ok(_) => {
+                        send!("{} created\u{000C}", cmd[1]);
+                    }
+                    Err(err) => {
+                        send!("Err: {err} in {} creation\u{000C}", cmd[1]);
+                    }
                 }
             }
             "rmdir" if cfg!(windows) => {
                 if cmd.len() == 1 {
                     send!("No name specified\u{000C}");
-                    continue
+                    continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
-                   file = cwd.join(file); 
+                    file = cwd.join(file);
                 }
                 match fs::remove_dir_all(file) {
-                    Ok(_) => {send!("{} removed\u{000C}", cmd[1]);},
-                    Err(err) => {send!("Err: {err} in removing {}\u{000C}", cmd[1]);},
+                    Ok(_) => {
+                        send!("{} removed\u{000C}", cmd[1]);
+                    }
+                    Err(err) => {
+                        send!("Err: {err} in removing {}\u{000C}", cmd[1]);
+                    }
                 }
             }
             "export" => {
                 if cmd.len() != 2 {
                     send!("Parameter in a form - name=value has to be specified\u{000C}");
-                    continue
+                    continue;
                 }
-                if let Some((name,value)) = cmd[1].split_once('=') {
-                    child_env.insert(name.to_string(),value.to_string());
+                if let Some((name, value)) = cmd[1].split_once('=') {
+                    child_env.insert(name.to_string(), value.to_string());
                     send!("\u{000C}");
                 } else {
                     send!("The parameter has to be in the name=value form\u{000C}");
                 }
-                continue
+                continue;
             }
             "unset" => {
                 if cmd.len() != 2 {
                     send!("Name of an environment variable is not specified\u{000C}");
-                    continue
+                    continue;
                 }
                 child_env.remove(&cmd[1]);
                 send!("\u{000C}");
             }
             "set" if cfg!(windows) => {
                 match cmd.len() {
-                1 => 
-                    for (key, value) in &child_env {
-                        send!("{}={}\n", key, value);
-                    }
-                2 => {
-                    if let Some((name,value)) = cmd[1].split_once('=') {
-                        if value.is_empty() {
-                            child_env.remove(name);
-                        } else {
-                            child_env.insert(name.to_string(),value.to_string());
+                    1 => {
+                        for (key, value) in &child_env {
+                            send!("{}={}\n", key, value);
                         }
-                    } else {
-                        send!("The parameter has to be in a form: name=value");
                     }
-                }
-                _ => { send!("Invalid number of parameters");}
+                    2 => {
+                        if let Some((name, value)) = cmd[1].split_once('=') {
+                            if value.is_empty() {
+                                child_env.remove(name);
+                            } else {
+                                child_env.insert(name.to_string(), value.to_string());
+                            }
+                        } else {
+                            send!("The parameter has to be in a form: name=value");
+                        }
+                    }
+                    _ => {
+                        send!("Invalid number of parameters");
+                    }
                 }
                 send!("\u{000C}");
-                
             }
             "alias" => {
                 if cmd.len() == 1 {
-                    for (alias,extension) in &aliases {
+                    for (alias, extension) in &aliases {
                         send!("alias {alias}='{}'\n", extension.join(" "));
                     }
-                } else  if cmd.len() == 2 && let Some((name,value)) = cmd.get(1).unwrap().split_once('=') {
+                } else if cmd.len() == 2
+                    && let Some((name, value)) = cmd.get(1).unwrap().split_once('=')
+                {
                     let name = name.trim();
                     let value = value.trim_matches(['"', '\'', ' ']);
-                    aliases.insert(name.to_string(),value.split_ascii_whitespace().map(str::to_string).collect());
+                    aliases.insert(
+                        name.to_string(),
+                        value.split_ascii_whitespace().map(str::to_string).collect(),
+                    );
                 } else {
                     send!("Invalid number of arguments of alias");
                 }
@@ -469,25 +567,27 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     cmd = expand_wildcard(&cwd, cmd);
                     if in_file.is_empty() && out_file.is_empty() {
                         if bkgr {
-                            if let Ok(pid) = call_process_async(&cmd, &cwd,&child_env) {
+                            if let Ok(pid) = call_process_async(&cmd, &cwd, &child_env) {
                                 send!("[{}] {pid}\u{000C}", cmd[0]);
                             }
                         } else {
                             prev = call_process(cmd, &cwd, &stdin, &child_env);
                         }
                     } else if in_file.is_empty() {
-                        if !out_file .is_empty() /*None*/ {
+                        if !out_file.is_empty()
+                        /*None*/
+                        {
                             let out_file = interpolate_env(out_file);
                             let mut file = PathBuf::from(&out_file);
                             if !file.has_root() {
-                               file = cwd.join(file); 
+                                file = cwd.join(file);
                             }
                             let mut file = OpenOptions::new()
                                 .write(true)
-                                .append(appnd) 
-                                .create(!appnd) 
+                                .append(appnd)
+                                .create(!appnd)
                                 .truncate(!appnd)
-                                .open(file)?; 
+                                .open(file)?;
                             prev = call_process_out_file(cmd, &cwd, &stdin, &mut file, &child_env);
                         } else {
                             prev = call_process(cmd, &cwd, &stdin, &child_env);
@@ -501,15 +601,15 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         if let Ok(contents) = fs::read(&in_file) {
                             let res = call_process_piped(cmd, &cwd, &contents, &child_env).unwrap();
                             if out_file.is_empty() {
-                                 send!("{}\u{000C}",String::from_utf8_lossy(&res));
+                                send!("{}\u{000C}", String::from_utf8_lossy(&res));
                             } else {
-                                 let out_file = interpolate_env(out_file);
-                                 let mut out_file = PathBuf::from(out_file);
-                                 if !out_file.has_root() {
-                                     out_file = PathBuf::from(&cwd).join(out_file);
-                                 }
-                                 let _ =fs::write(&out_file, res);
-                                 send!("\u{000C}");
+                                let out_file = interpolate_env(out_file);
+                                let mut out_file = PathBuf::from(out_file);
+                                if !out_file.has_root() {
+                                    out_file = PathBuf::from(&cwd).join(out_file);
+                                }
+                                let _ = fs::write(&out_file, res);
+                                send!("\u{000C}");
                             }
                         } else {
                             send!("Can't read {}\u{000C}", in_file.display().to_string().red());
@@ -523,9 +623,14 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         pipe_cmd = expand_wildcard(&cwd, pipe_cmd);
                         pipe_cmd = expand_alias(&aliases, pipe_cmd);
                         match call_process_piped(pipe_cmd.clone(), &cwd, &res, &child_env) {
-                            Ok(next_res) => { res = next_res; }
-                            Err(err) => {eprintln!("error {err} in call {pipe_cmd:?}");break}
-                        } 
+                            Ok(next_res) => {
+                                res = next_res;
+                            }
+                            Err(err) => {
+                                eprintln!("error {err} in call {pipe_cmd:?}");
+                                break;
+                            }
+                        }
                         //eprintln!("Called {pipe_cmd:?} returned {}", String::from_utf8_lossy(&res));
                     }
                     cmd = expand_wildcard(&cwd, cmd);
@@ -533,13 +638,13 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     //eprintln!("before call {cmd:?}");
                     res = call_process_piped(cmd, &cwd, &res, &child_env).unwrap();
                     if out_file.is_empty() {
-                        send!("{}\u{000C}",String::from_utf8_lossy(&res));
+                        send!("{}\u{000C}", String::from_utf8_lossy(&res));
                     } else {
                         let mut out_file = PathBuf::from(out_file);
                         if !out_file.has_root() {
                             out_file = PathBuf::from(&cwd).join(out_file);
                         }
-                        let _ =fs::write(&out_file, res);
+                        let _ = fs::write(&out_file, res);
                         send!("\u{000C}");
                     }
                 }
@@ -550,25 +655,29 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
     term.save_state()
 }
 
-fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env: &HashMap<String, String>) -> Option<Vec<u8>> {
+fn call_process(
+    cmd: Vec<String>,
+    cwd: &PathBuf,
+    mut stdin: &Stdin,
+    filtered_env: &HashMap<String, String>,
+) -> Option<Vec<u8>> {
     let mut binding = Command::new(&cmd[0]);
-    let mut process = 
-        binding
-         .stdout(Stdio::piped())
-         .stdin(Stdio::piped())
-         .stderr(Stdio::piped())
-         .env_clear()
-         .envs(filtered_env)
-         .current_dir(cwd);
+    let mut process = binding
+        .stdout(Stdio::piped())
+        .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env_clear()
+        .envs(filtered_env)
+        .current_dir(cwd);
     if cmd.len() > 1 {
         process = process.args(&cmd[1..])
     }
     let process = process.spawn();
-    let mut res : Option<Vec<u8>> = None;
+    let mut res: Option<Vec<u8>> = None;
     match process {
         Ok(mut process) => {
-        // TODO consider
-        // let (mut recv, send) = std::io::pipe()?;
+            // TODO consider
+            // let (mut recv, send) = std::io::pipe()?;
             let mut stdout = process.stdout.take()?;
             let mut stdin_child = process.stdin.take()?;
             let stderr = process.stderr.take()?;
@@ -576,74 +685,85 @@ fn call_process(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, filtered_env
             let for_kill = Arc::clone(&share_process);
             let for_wait = Arc::clone(&share_process);
             thread::scope(|s| {
-                
                 let err_col = s.spawn(|| {
-                     let reader = BufReader::new(stderr);
+                    let reader = BufReader::new(stderr);
                     /* it waits for new output */
                     for line in reader.lines() {
                         let string = line.unwrap();
-                        send!{"{}\n", string};
+                        send! {"{}\n", string};
                     }
                 });
 
                 s.spawn(|| {
-                    let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
-                    while let Ok(len) = stdin.read(&mut buffer) && len > 0 {
-                        if len == 1 && buffer[0] == 3 
-                            && for_kill.lock().unwrap().kill().is_ok() {
+                    let mut buffer = [0_u8; MAX_BLOCK_LEN];
+                    while let Ok(len) = stdin.read(&mut buffer)
+                        && len > 0
+                    {
+                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
                             send!("^C");
-                            break
+                            break;
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
-                                send!{"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
+                                send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
                                 res = None; // user input consumed by the child process
                             }
                             Err(_) => {
-                                res  = Some(buffer[0..len].to_vec()); // user input goes in the terminal way
-                                break
+                                res = Some(buffer[0..len].to_vec()); // user input goes in the terminal way
+                                break;
                             }
                         }
                     }
                 });
-                
+
                 //s.spawn(|| {
-                    let mut buffer = [0_u8; MAX_BLOCK_LEN]; 
-                    while let Ok(l) = stdout.read(&mut buffer) && l > 0 {
-                        let data = buffer[..l].to_vec();
-                        let string = String::from_utf8_lossy(&data);
-                        send!{"{}", string};
-                    }
+                let mut buffer = [0_u8; MAX_BLOCK_LEN];
+                while let Ok(l) = stdout.read(&mut buffer)
+                    && l > 0
+                {
+                    let data = buffer[..l].to_vec();
+                    let string = String::from_utf8_lossy(&data);
+                    send! {"{}", string};
+                }
                 //});
 
-               for_wait.lock().unwrap().wait().unwrap();
-               let _ = err_col.join();
-               send!("\u{000C}");
-                
+                for_wait.lock().unwrap().wait().unwrap();
+                let _ = err_col.join();
+                send!("\u{000C}");
             });
         }
-        Err(err) => {send!("Can't run: {} in {cwd:?} - {err}\u{000C}", cmd[0].clone().red());},
+        Err(err) => {
+            send!(
+                "Can't run: {} in {cwd:?} - {err}\u{000C}",
+                cmd[0].clone().red()
+            );
+        }
     }
     res
 }
 
-fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out: &mut dyn Write, filtered_env: &HashMap<String, String>) -> Option<Vec<u8>> {
+fn call_process_out_file(
+    cmd: Vec<String>,
+    cwd: &PathBuf,
+    mut stdin: &Stdin,
+    out: &mut dyn Write,
+    filtered_env: &HashMap<String, String>,
+) -> Option<Vec<u8>> {
     let mut binding = Command::new(&cmd[0]);
-    let mut process = 
-        binding
-         .stdout(Stdio::piped())
-         .stdin(Stdio::piped())
-         .stderr(Stdio::piped())
-         .env_clear()
-         .envs(filtered_env)
-         .current_dir(cwd);
+    let mut process = binding
+        .stdout(Stdio::piped())
+        .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env_clear()
+        .envs(filtered_env)
+        .current_dir(cwd);
     if cmd.len() > 1 {
         process = process.args(&cmd[1..])
     }
     let process = process.spawn();
-    let mut res : Option<Vec<u8>> = None;
+    let mut res: Option<Vec<u8>> = None;
     match process {
         Ok(mut process) => {
             let mut stdout = process.stdout.take()?;
@@ -653,66 +773,76 @@ fn call_process_out_file(cmd: Vec<String>, cwd: &PathBuf, mut stdin: &Stdin, out
             let for_kill = Arc::clone(&share_process);
             let for_wait = Arc::clone(&share_process);
             thread::scope(|s| {
-                
                 s.spawn(|| {
-                     let reader = BufReader::new(stderr);
+                    let reader = BufReader::new(stderr);
                     /* it waits for new output */
                     for line in reader.lines() {
                         let string = line.unwrap();
-                        send!{"{}\n", string};
+                        send! {"{}\n", string};
                     }
                 });
 
                 s.spawn(|| {
-                    let mut buffer = [0_u8;MAX_BLOCK_LEN]; 
-                    while let Ok(len) = stdin.read(&mut buffer) && len > 0 { 
+                    let mut buffer = [0_u8; MAX_BLOCK_LEN];
+                    while let Ok(len) = stdin.read(&mut buffer)
+                        && len > 0
+                    {
                         if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
                             send!("^C");
-                            break
+                            break;
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
-                                send!{"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
+                                send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
                                 res = None; // user input consumed by the child process
                             }
                             Err(_) => {
-                                res  = Some(buffer[0..len].to_vec()); // user input goes in the terminal way
-                                break
+                                res = Some(buffer[0..len].to_vec()); // user input goes in the terminal way
+                                break;
                             }
                         }
                     }
                 });
-                
-                let mut buffer = [0_u8; MAX_BLOCK_LEN]; 
-                while let Ok(l) = stdout.read(&mut buffer) && l > 0 {
+
+                let mut buffer = [0_u8; MAX_BLOCK_LEN];
+                while let Ok(l) = stdout.read(&mut buffer)
+                    && l > 0
+                {
                     if out.write(&buffer[..l]).is_err() {
-                        break
+                        break;
                     }
                 }
 
                 for_wait.lock().unwrap().wait().unwrap();
                 send!("\u{000C}");
-                
             });
         }
-        Err(err) => {send!("Can't run: {} in {cwd:?} - {err}\u{000C}", cmd[0].clone().red());},
+        Err(err) => {
+            send!(
+                "Can't run: {} in {cwd:?} - {err}\u{000C}",
+                cmd[0].clone().red()
+            );
+        }
     }
     res
 }
 
-
-fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_env: &HashMap<String, String>) -> io::Result<Vec<u8>> {
+fn call_process_piped(
+    cmd: Vec<String>,
+    cwd: &PathBuf,
+    in_pipe: &[u8],
+    filtered_env: &HashMap<String, String>,
+) -> io::Result<Vec<u8>> {
     let mut binding = Command::new(&cmd[0]);
-    let mut process = 
-        binding
-         .stdout(Stdio::piped())
-         .stdin(Stdio::piped())
-         .stderr(Stdio::piped())
-         .env_clear()
-         .envs(filtered_env)
-         .current_dir(cwd);
+    let mut process = binding
+        .stdout(Stdio::piped())
+        .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env_clear()
+        .envs(filtered_env)
+        .current_dir(cwd);
     if cmd.len() > 1 {
         process = process.args(&cmd[1..])
     }
@@ -721,23 +851,25 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_
     let stderr = process.stderr.take().unwrap();
     let mut stdin_child = process.stdin.take().unwrap();
     let handle = thread::spawn(move || {
-        let mut buffer = [0_u8; MAX_BLOCK_LEN]; 
+        let mut buffer = [0_u8; MAX_BLOCK_LEN];
         let mut res = vec![];
-        while let Ok(l) = stdout.read(&mut buffer) && l > 0 {
+        while let Ok(l) = stdout.read(&mut buffer)
+            && l > 0
+        {
             res.extend_from_slice(&buffer[..l])
         }
         res
     });
-        
+
     thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line in reader.lines() {
             let string = line.unwrap();
-            send!{"{}\n", string};
+            send! {"{}\n", string};
         }
     });
 
-    if stdin_child.write_all(in_pipe) .is_ok() {
+    if stdin_child.write_all(in_pipe).is_ok() {
         stdin_child.flush().unwrap()
     }
     drop(stdin_child);
@@ -745,30 +877,35 @@ fn call_process_piped(cmd: Vec<String>, cwd: &PathBuf, in_pipe: &[u8], filtered_
     Ok(handle.join().unwrap())
 }
 
-fn call_process_async(cmd: &[String], cwd: &PathBuf, filtered_env: &HashMap<String, String>) -> io::Result<u32> {
+fn call_process_async(
+    cmd: &[String],
+    cwd: &PathBuf,
+    filtered_env: &HashMap<String, String>,
+) -> io::Result<u32> {
     let mut binding = Command::new(&cmd[0]);
     let mut command = binding
-             .stdout(std::process::Stdio::null())
-             .stdin(std::process::Stdio::null())
-             .stderr(std::process::Stdio::null())
-             .env_clear()
-             .envs(filtered_env)
-             .current_dir(cwd);
+        .stdout(std::process::Stdio::null())
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .env_clear()
+        .envs(filtered_env)
+        .current_dir(cwd);
     if cmd.len() > 1 {
         command = command.args(&cmd[1..])
-    }  ;    
+    };
     Ok(command.spawn()?.id())
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
 enum CmdState {
     #[default]
-    StartArg ,
+    StartArg,
     QuotedArg,
     InArg,
     Esc,
     QEsc,
-    ApostrInArg, ApEsc,
+    ApostrInArg,
+    ApEsc,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -779,8 +916,10 @@ enum RedirectSate {
     Output,
 }
 
-fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,String,bool,bool) {
-// TODO add < for first group and > for last group which can be be the same
+fn parse_cmd(
+    input: &impl AsRef<str>,
+) -> (Vec<String>, Vec<Vec<String>>, String, String, bool, bool) {
+    // TODO add < for first group and > for last group which can be be the same
     let mut pipe_res = vec![];
     let mut res = vec![];
     let mut input_file = String::new();
@@ -794,32 +933,40 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
     let input = input.as_ref();
     for c in input.chars() {
         match c {
-            ' ' | '\t' | '\r' | '\n' | '\u{00a0}' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '\u{000C}' | '\u{000B}' => { // \f \v
-                 match state {
-                    CmdState:: StartArg => {
+            ' ' | '\t' | '\r' | '\n' | '\u{00a0}' | '|' | '(' | ')' | '<' | '>' | ';' | '&'
+            | '\u{000C}' | '\u{000B}' => {
+                // \f \v
+                match state {
+                    CmdState::StartArg => {
                         match c {
                             '|' => {
                                 // finish the command + args group and start a new one
                                 pipe_res.push(res.clone());
                                 res.clear();
                             }
-                            '<' => { red_state = RedirectSate::Input; }
+                            '<' => {
+                                red_state = RedirectSate::Input;
+                            }
                             '>' => match red_state {
                                 RedirectSate::Output => append = true,
-                                _ => red_state = RedirectSate::Output
-                                }
+                                _ => red_state = RedirectSate::Output,
+                            },
                             '&' => asynch = true,
                             _ => (),
                         }
                     }
-                    CmdState:: InArg => {
-                        state = CmdState:: StartArg;
+                    CmdState::InArg => {
+                        state = CmdState::StartArg;
                         match red_state {
                             RedirectSate::NoRedirect => {
                                 res.push(curr_comp.clone());
                             }
-                            RedirectSate::Input => {input_file = String::from(&curr_comp);}
-                            RedirectSate::Output => {output_file = String::from(&curr_comp);}
+                            RedirectSate::Input => {
+                                input_file = String::from(&curr_comp);
+                            }
+                            RedirectSate::Output => {
+                                output_file = String::from(&curr_comp);
+                            }
                         }
                         curr_comp.clear();
                         match c {
@@ -827,58 +974,81 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
                                 pipe_res.push(res.clone());
                                 res.clear();
                             }
-                            '<' => { red_state = RedirectSate::Input; }
-                            '>' => { match red_state {
-                                RedirectSate::Output => append = true,
-                                _ => red_state = RedirectSate::Output
-                                }
+                            '<' => {
+                                red_state = RedirectSate::Input;
                             }
+                            '>' => match red_state {
+                                RedirectSate::Output => append = true,
+                                _ => red_state = RedirectSate::Output,
+                            },
                             '&' => asynch = true,
                             _ => red_state = RedirectSate::NoRedirect,
                         }
                     }
-                    CmdState:: Esc => {
-                        state = CmdState:: InArg;
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
                         curr_comp.push(c)
-                    } 
-                    CmdState:: QuotedArg | CmdState:: ApostrInArg => {
+                    }
+                    CmdState::QuotedArg | CmdState::ApostrInArg => {
                         curr_comp.push(c);
                     }
-                    CmdState:: QEsc => {
-                        state = CmdState:: QuotedArg;
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
                         curr_comp.push(c)
                     }
-                    CmdState:: ApEsc => {
-                        state = CmdState:: ApostrInArg;
+                    CmdState::ApEsc => {
+                        state = CmdState::ApostrInArg;
                         curr_comp.push(c)
-                    } 
+                    }
                 }
             }
             '"' | '\'' => {
                 asynch = false;
                 match state {
-                   CmdState:: StartArg  => {
-                       state = CmdState:: QuotedArg; q_char = c;
-                   }
-                   CmdState:: QuotedArg if q_char == c => {
-                        state = CmdState:: StartArg;
+                    CmdState::StartArg => {
+                        state = CmdState::QuotedArg;
+                        q_char = c;
+                    }
+                    CmdState::QuotedArg if q_char == c => {
+                        state = CmdState::StartArg;
                         match red_state {
                             RedirectSate::NoRedirect => {
                                 res.push(curr_comp.clone());
-                                   curr_comp.clear();
+                                curr_comp.clear();
                             }
-                            RedirectSate::Input => {input_file = String::from(&curr_comp);}
-                            RedirectSate::Output => {output_file = curr_comp.clone();}
+                            RedirectSate::Input => {
+                                input_file = String::from(&curr_comp);
+                            }
+                            RedirectSate::Output => {
+                                output_file = curr_comp.clone();
+                            }
                         }
                         red_state = RedirectSate::NoRedirect;
-                   }
-                   CmdState:: QuotedArg  => curr_comp.push(c),
-                   CmdState:: InArg => {if c == '\'' {state = CmdState:: ApostrInArg} curr_comp.push(c) }
-                   CmdState:: ApostrInArg => {if c == '\'' {state = CmdState:: InArg} curr_comp.push(c) }
-                   CmdState::Esc => { curr_comp.push('\\'); curr_comp.push(c); state = CmdState:: InArg; }
-                   CmdState::QEsc => { curr_comp.push(c); state = CmdState:: QuotedArg; }
-                   CmdState:: ApEsc => {
-                        state = CmdState:: ApostrInArg;
+                    }
+                    CmdState::QuotedArg => curr_comp.push(c),
+                    CmdState::InArg => {
+                        if c == '\'' {
+                            state = CmdState::ApostrInArg
+                        }
+                        curr_comp.push(c)
+                    }
+                    CmdState::ApostrInArg => {
+                        if c == '\'' {
+                            state = CmdState::InArg
+                        }
+                        curr_comp.push(c)
+                    }
+                    CmdState::Esc => {
+                        curr_comp.push('\\');
+                        curr_comp.push(c);
+                        state = CmdState::InArg;
+                    }
+                    CmdState::QEsc => {
+                        curr_comp.push(c);
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::ApEsc => {
+                        state = CmdState::ApostrInArg;
                         curr_comp.push(c)
                     }
                 }
@@ -886,25 +1056,25 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
             '\\' => {
                 asynch = false;
                 match state {
-                    CmdState:: StartArg | CmdState:: InArg => {
-                       state = CmdState:: Esc;
+                    CmdState::StartArg | CmdState::InArg => {
+                        state = CmdState::Esc;
                     }
-                    CmdState:: QuotedArg => {
-                        state = CmdState:: QEsc;
+                    CmdState::QuotedArg => {
+                        state = CmdState::QEsc;
                     }
-                    CmdState:: ApostrInArg => {
-                        state = CmdState:: ApEsc;
+                    CmdState::ApostrInArg => {
+                        state = CmdState::ApEsc;
                     }
-                    CmdState:: Esc => {
-                        state = CmdState:: InArg;
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
                         curr_comp.push(c);
                     }
-                    CmdState:: QEsc => {
-                        state = CmdState:: QuotedArg;
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
                         curr_comp.push(c);
                     }
-                    CmdState:: ApEsc => {
-                        state = CmdState:: ApostrInArg;
+                    CmdState::ApEsc => {
+                        state = CmdState::ApostrInArg;
                         curr_comp.push(c)
                     }
                 }
@@ -912,65 +1082,67 @@ fn parse_cmd(input: &impl AsRef<str>) -> (Vec<String>,Vec<Vec<String>>,String,St
             other => {
                 asynch = false;
                 match state {
-                    CmdState:: StartArg => {
-                       state = CmdState:: InArg;
-                       curr_comp.push(other);
-                   }
-                   CmdState:: QuotedArg | CmdState:: InArg | CmdState:: ApostrInArg => {
-                       curr_comp.push(other);
-                   }
-                   CmdState:: Esc => {
-                        state = CmdState:: InArg;
+                    CmdState::StartArg => {
+                        state = CmdState::InArg;
+                        curr_comp.push(other);
+                    }
+                    CmdState::QuotedArg | CmdState::InArg | CmdState::ApostrInArg => {
+                        curr_comp.push(other);
+                    }
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
                         curr_comp.push('\\');
                         curr_comp.push(c);
-                   }
-                   CmdState:: QEsc => {
-                        state = CmdState:: QuotedArg;
+                    }
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
                         curr_comp.push('\\');
                         curr_comp.push(c);
-                   }
-                   CmdState:: ApEsc => {
-                        state = CmdState:: ApostrInArg;
+                    }
+                    CmdState::ApEsc => {
+                        state = CmdState::ApostrInArg;
                         curr_comp.push('\\');
                         curr_comp.push(c)
                     }
                 }
             }
         }
-       
     }
-    
-    if state == CmdState:: Esc {
+
+    if state == CmdState::Esc {
         curr_comp.push('\\');
-        state = CmdState:: InArg;
-    } else if state == CmdState:: ApEsc {
+        state = CmdState::InArg;
+    } else if state == CmdState::ApEsc {
         curr_comp.push('\\');
-        state = CmdState:: ApostrInArg;
-    } else if state == CmdState:: QEsc {
+        state = CmdState::ApostrInArg;
+    } else if state == CmdState::QEsc {
         curr_comp.push('\\');
-        state = CmdState:: QuotedArg;
+        state = CmdState::QuotedArg;
     }
     match state {
-        CmdState:: InArg | CmdState::QuotedArg | CmdState:: ApostrInArg => {
-            match red_state {
-                RedirectSate::NoRedirect => {
-                    if state == CmdState:: InArg || state == CmdState:: ApostrInArg {
-                        res.push(interpolate_env(curr_comp))
-                    } else {
-                       res.push(curr_comp)
-                    }
+        CmdState::InArg | CmdState::QuotedArg | CmdState::ApostrInArg => match red_state {
+            RedirectSate::NoRedirect => {
+                if state == CmdState::InArg || state == CmdState::ApostrInArg {
+                    res.push(interpolate_env(curr_comp))
+                } else {
+                    res.push(curr_comp)
                 }
-                RedirectSate::Input => {input_file = String::from(&curr_comp);}
-                RedirectSate::Output => {output_file = String::from(&curr_comp);}
             }
-        }
-        CmdState:: StartArg => (),
-        _ => todo!() // shouldn't happen ever
+            RedirectSate::Input => {
+                input_file = String::from(&curr_comp);
+            }
+            RedirectSate::Output => {
+                output_file = String::from(&curr_comp);
+            }
+        },
+        CmdState::StartArg => (),
+        _ => todo!(), // shouldn't happen ever
     }
-    (res, pipe_res,input_file,output_file,append,asynch)
+    (res, pipe_res, input_file, output_file, append, asynch)
 }
 
-fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<String>>
+fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> {
+    // Vec<Cow<String>>
     #[cfg(not(target_os = "windows"))]
     let prog = cmd[0].clone();
     #[cfg(target_os = "windows")]
@@ -994,8 +1166,7 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<Str
             } else {
                 comp_path.pop();
                 for arg in data.src_wild {
-                    comp_path.push(format!{"{}{arg}{}",&data.src_before, &data.src_after})
-                    ;
+                    comp_path.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
                     res.push(comp_path.display().to_string());
                     comp_path.pop();
                 }
@@ -1005,7 +1176,7 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> { // Vec<Cow<Str
     res
 }
 
-fn expand_alias(aliases: &HashMap<String,Vec<String>>, mut cmd: Vec<String>) -> Vec<String> {
+fn expand_alias(aliases: &HashMap<String, Vec<String>>, mut cmd: Vec<String>) -> Vec<String> {
     match aliases.get(&cmd[0]) {
         Some(expand) => {
             let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
@@ -1016,8 +1187,15 @@ fn expand_alias(aliases: &HashMap<String,Vec<String>>, mut cmd: Vec<String>) -> 
                     interpolated.push(interpolate_env(element.to_string()))
                 }
             }
-            cmd.splice(0..1, interpolated); cmd }
-        _ => {if cmd[0].starts_with("\\") {cmd[0] = cmd[0][1..].to_owned();} cmd}
+            cmd.splice(0..1, interpolated);
+            cmd
+        }
+        _ => {
+            if cmd[0].starts_with("\\") {
+                cmd[0] = cmd[0][1..].to_owned();
+            }
+            cmd
+        }
     }
 }
 
@@ -1025,7 +1203,7 @@ fn expand_alias(aliases: &HashMap<String,Vec<String>>, mut cmd: Vec<String>) -> 
 enum EnvExpState {
     #[default]
     TildeCan,
-    InArg ,
+    InArg,
     ExpEnvName,
     InBracketEnvName,
     InEnvName,
@@ -1034,253 +1212,315 @@ enum EnvExpState {
     EscNoInterpol,
 }
 
-fn interpolate_env(s:String) -> String {
-// this function called when parameters are going in the processing
+fn interpolate_env(s: String) -> String {
+    // this function called when parameters are going in the processing
     let mut res = String::new();
     let mut state = Default::default();
     let mut curr_env = String::new();
-    
+
     for c in s.chars() {
         match c {
             '$' => {
                 match state {
-                    EnvExpState::InArg | EnvExpState::TildeCan => 
-                        state = EnvExpState:: ExpEnvName,
-                    EnvExpState::Esc => { state = EnvExpState::InArg; res.push(c) },
+                    EnvExpState::InArg | EnvExpState::TildeCan => state = EnvExpState::ExpEnvName,
+                    EnvExpState::Esc => {
+                        state = EnvExpState::InArg;
+                        res.push(c)
+                    }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                            if curr_env == "0" {
+                                Ok(res.push_str(TERMINAL_NAME))
+                            } else {
+                                Err(e)
+                            }
+                        });
                         curr_env.clear();
                         state = EnvExpState::ExpEnvName
                     }
-                    EnvExpState::ExpEnvName => { // current PID
-                        res.push_str(&format!("{}", std::process::id()));
-                        state =  EnvExpState::InArg 
-                    }
-                    EnvExpState::InBracketEnvName => curr_env.push(c),
-                    EnvExpState:: NoInterpol => res.push(c),
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
-                    }
-                }
-            }
-            '\\' => {
-                match state {
-                    EnvExpState::InArg | EnvExpState::TildeCan => { state =  EnvExpState::Esc }
-                    EnvExpState::Esc => { res.push('\\');
-                        state =  EnvExpState::InArg
-                    }
-                    EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
-                        curr_env.clear();
-                        state = EnvExpState::Esc
-                    }
-                    EnvExpState::InBracketEnvName => curr_env.push(c),
-                    EnvExpState:: NoInterpol => state = EnvExpState::EscNoInterpol,
-                    EnvExpState::EscNoInterpol => {
-                        res.push(c); state =  EnvExpState::NoInterpol
-                    }
-                }
-            }
-            'a'..='z' | 'A'..='Z' | '_' | '0'..='9' => {
-                match state {
-                    EnvExpState::InArg => { res.push(c) }
-                    EnvExpState::TildeCan => {
-                        state = EnvExpState::InArg;
-                        res.push(c)
-                    }
-                    EnvExpState::Esc => { res.push('\\');
-                        res.push(c); state =  EnvExpState::InArg
-                    }
-                    EnvExpState::InEnvName | EnvExpState::InBracketEnvName => {
-                        curr_env.push(c);
-                    }
                     EnvExpState::ExpEnvName => {
-                        curr_env.push(c);
-                        state = EnvExpState::InEnvName
+                        // current PID
+                        res.push_str(&format!("{}", std::process::id()));
+                        state = EnvExpState::InArg
                     }
-                    EnvExpState:: NoInterpol => res.push(c),
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
+                    EnvExpState::InBracketEnvName => curr_env.push(c),
+                    EnvExpState::NoInterpol => res.push(c),
+                    EnvExpState::EscNoInterpol => {
+                        res.push('\\');
+                        res.push(c);
+                        state = EnvExpState::NoInterpol
                     }
                 }
             }
+            '\\' => match state {
+                EnvExpState::InArg | EnvExpState::TildeCan => state = EnvExpState::Esc,
+                EnvExpState::Esc => {
+                    res.push('\\');
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
+                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                        if curr_env == "0" {
+                            Ok(res.push_str(TERMINAL_NAME))
+                        } else {
+                            Err(e)
+                        }
+                    });
+                    curr_env.clear();
+                    state = EnvExpState::Esc
+                }
+                EnvExpState::InBracketEnvName => curr_env.push(c),
+                EnvExpState::NoInterpol => state = EnvExpState::EscNoInterpol,
+                EnvExpState::EscNoInterpol => {
+                    res.push(c);
+                    state = EnvExpState::NoInterpol
+                }
+            },
+            'a'..='z' | 'A'..='Z' | '_' | '0'..='9' => match state {
+                EnvExpState::InArg => res.push(c),
+                EnvExpState::TildeCan => {
+                    state = EnvExpState::InArg;
+                    res.push(c)
+                }
+                EnvExpState::Esc => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InEnvName | EnvExpState::InBracketEnvName => {
+                    curr_env.push(c);
+                }
+                EnvExpState::ExpEnvName => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
+                }
+                EnvExpState::NoInterpol => res.push(c),
+                EnvExpState::EscNoInterpol => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::NoInterpol
+                }
+            },
             '~' => {
                 match state {
-                    EnvExpState::TildeCan => { // expansion can consider another user name after but not implemented yet
+                    EnvExpState::TildeCan => {
+                        // expansion can consider another user name after but not implemented yet
                         if let Some(env_value) = env::home_dir() {
                             res.push_str(&env_value.display().to_string())
                         }
                         state = EnvExpState::InArg
                     }
-                    EnvExpState::InArg => { res.push(c) }
+                    EnvExpState::InArg => res.push(c),
                     EnvExpState::Esc => {
-                        res.push(c); state =  EnvExpState::InArg
+                        res.push(c);
+                        state = EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
+                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                            if curr_env == "0" {
+                                Ok(res.push_str(TERMINAL_NAME))
+                            } else {
+                                Err(e)
+                            }
+                        });
                         curr_env.clear();
                         if let Some(env_value) = env::home_dir() {
                             res.push_str(&env_value.display().to_string())
                         }
                         state = EnvExpState::InArg
                     }
-                    EnvExpState::ExpEnvName => { // $~
-                        res.push('$'); res.push(c);
-                        state = EnvExpState::InArg
-                    }
-                    EnvExpState::InBracketEnvName => curr_env.push(c),
-                    EnvExpState:: NoInterpol => res.push(c),
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
-                    }
-                }
-            }
-            '{' => {
-                match state {
-                    EnvExpState::InArg => {
-                        res.push(c)
-                    }
-                    EnvExpState::TildeCan => {
-                        state = EnvExpState::InArg;
-                        res.push(c)
-                    }
-                    EnvExpState::Esc => { res.push('\\');
-                        res.push(c); state =  EnvExpState::InArg
-                    }
-                    EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
-                        curr_env.clear();
+                    EnvExpState::ExpEnvName => {
+                        // $~
+                        res.push('$');
                         res.push(c);
                         state = EnvExpState::InArg
                     }
-                    EnvExpState::ExpEnvName => {
-                        state = EnvExpState::InBracketEnvName
-                    }
                     EnvExpState::InBracketEnvName => curr_env.push(c),
-                    EnvExpState:: NoInterpol => res.push(c),
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
-                    }
-                }
-            }
-            '}' => {
-                match state {
-                    EnvExpState::InArg | EnvExpState:: NoInterpol => {
-                        res.push(c)
-                    }
-                    EnvExpState::TildeCan => {
-                        state = EnvExpState::InArg;
-                        res.push(c)
-                    }
-                    EnvExpState::ExpEnvName => {
-                        state = EnvExpState::InArg;
-                        res.push(c)
-                    }
-                    EnvExpState::Esc => { res.push('\\');
-                        res.push(c); state =  EnvExpState::InArg
-                    }
-                    EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
-                        curr_env.clear();
+                    EnvExpState::NoInterpol => res.push(c),
+                    EnvExpState::EscNoInterpol => {
+                        res.push('\\');
                         res.push(c);
-                        state = EnvExpState::InArg
-                    }
-                    EnvExpState::InBracketEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
-                        curr_env.clear();
-                        state = EnvExpState::InArg
-                    }
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
+                        state = EnvExpState::NoInterpol
                     }
                 }
             }
-            '\'' => { // no interpolation inside ''
+            '{' => match state {
+                EnvExpState::InArg => res.push(c),
+                EnvExpState::TildeCan => {
+                    state = EnvExpState::InArg;
+                    res.push(c)
+                }
+                EnvExpState::Esc => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InEnvName => {
+                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                        if curr_env == "0" {
+                            Ok(res.push_str(TERMINAL_NAME))
+                        } else {
+                            Err(e)
+                        }
+                    });
+                    curr_env.clear();
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::ExpEnvName => state = EnvExpState::InBracketEnvName,
+                EnvExpState::InBracketEnvName => curr_env.push(c),
+                EnvExpState::NoInterpol => res.push(c),
+                EnvExpState::EscNoInterpol => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::NoInterpol
+                }
+            },
+            '}' => match state {
+                EnvExpState::InArg | EnvExpState::NoInterpol => res.push(c),
+                EnvExpState::TildeCan => {
+                    state = EnvExpState::InArg;
+                    res.push(c)
+                }
+                EnvExpState::ExpEnvName => {
+                    state = EnvExpState::InArg;
+                    res.push(c)
+                }
+                EnvExpState::Esc => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InEnvName => {
+                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                        if curr_env == "0" {
+                            Ok(res.push_str(TERMINAL_NAME))
+                        } else {
+                            Err(e)
+                        }
+                    });
+                    curr_env.clear();
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InBracketEnvName => {
+                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                        if curr_env == "0" {
+                            Ok(res.push_str(TERMINAL_NAME))
+                        } else {
+                            Err(e)
+                        }
+                    });
+                    curr_env.clear();
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::EscNoInterpol => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::NoInterpol
+                }
+            },
+            '\'' => {
+                // no interpolation inside ''
                 match state {
-                    EnvExpState::InArg | EnvExpState::TildeCan => 
-                        state = EnvExpState:: NoInterpol,
-                    EnvExpState:: NoInterpol => state = EnvExpState::InArg,
+                    EnvExpState::InArg | EnvExpState::TildeCan => state = EnvExpState::NoInterpol,
+                    EnvExpState::NoInterpol => state = EnvExpState::InArg,
                     EnvExpState::EscNoInterpol => {
                         res.push(c);
-                        state = EnvExpState:: NoInterpol
+                        state = EnvExpState::NoInterpol
                     }
                     EnvExpState::Esc => {
-                        res.push(c); state =  EnvExpState::InArg
-                    }
-                    EnvExpState::InBracketEnvName | EnvExpState::InEnvName | EnvExpState::ExpEnvName => (), // generally error
-                }
-            }
-            '=' | ':' => {
-                match state {
-                    EnvExpState:: NoInterpol => {
-                        res.push(c)
-                    }
-                    EnvExpState::InArg => {
-                        state = EnvExpState::TildeCan;
-                        res.push(c)
-                    }
-                    EnvExpState::TildeCan => {
-                        state = EnvExpState::InArg;
-                        res.push(c)
-                    }
-                    EnvExpState::Esc => { res.push('\\');
-                        res.push(c); state =  EnvExpState::InArg
-                    }
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
-                    }
-                    EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
-                        curr_env.clear();
                         res.push(c);
                         state = EnvExpState::InArg
                     }
-                    EnvExpState::InBracketEnvName => curr_env.push(c),
+                    EnvExpState::InBracketEnvName
+                    | EnvExpState::InEnvName
+                    | EnvExpState::ExpEnvName => (), // generally error
                 }
             }
-            _ => {
-                match state {
-                    EnvExpState::InArg | EnvExpState:: NoInterpol => {
-                        res.push(c)
-                    }
-                    EnvExpState::TildeCan => {
-                        state = EnvExpState::InArg;
-                        res.push(c)
-                    }
-                    EnvExpState::Esc => { res.push('\\');
-                        res.push(c); state =  EnvExpState::InArg
-                    }
-                    EnvExpState::EscNoInterpol => { res.push('\\');
-                        res.push(c); state =  EnvExpState::NoInterpol
-                    }
-                    EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
-                        curr_env.clear();
-                        res.push(c);
-                        state = EnvExpState::InArg
-                    }
-                    EnvExpState::InBracketEnvName => curr_env.push(c),
+            '=' | ':' => match state {
+                EnvExpState::NoInterpol => res.push(c),
+                EnvExpState::InArg => {
+                    state = EnvExpState::TildeCan;
+                    res.push(c)
                 }
-            }
+                EnvExpState::TildeCan => {
+                    state = EnvExpState::InArg;
+                    res.push(c)
+                }
+                EnvExpState::Esc => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::EscNoInterpol => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::NoInterpol
+                }
+                EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
+                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                        if curr_env == "0" {
+                            Ok(res.push_str(TERMINAL_NAME))
+                        } else {
+                            Err(e)
+                        }
+                    });
+                    curr_env.clear();
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InBracketEnvName => curr_env.push(c),
+            },
+            _ => match state {
+                EnvExpState::InArg | EnvExpState::NoInterpol => res.push(c),
+                EnvExpState::TildeCan => {
+                    state = EnvExpState::InArg;
+                    res.push(c)
+                }
+                EnvExpState::Esc => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::EscNoInterpol => {
+                    res.push('\\');
+                    res.push(c);
+                    state = EnvExpState::NoInterpol
+                }
+                EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
+                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                        if curr_env == "0" {
+                            Ok(res.push_str(TERMINAL_NAME))
+                        } else {
+                            Err(e)
+                        }
+                    });
+                    curr_env.clear();
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::InBracketEnvName => curr_env.push(c),
+            },
         }
     }
     match state {
-        EnvExpState::InArg | EnvExpState::ExpEnvName | EnvExpState::InBracketEnvName
-            | EnvExpState::NoInterpol | EnvExpState::TildeCan => {
-        }
-        EnvExpState::Esc | EnvExpState::EscNoInterpol => { res.push('\\');
+        EnvExpState::InArg
+        | EnvExpState::ExpEnvName
+        | EnvExpState::InBracketEnvName
+        | EnvExpState::NoInterpol
+        | EnvExpState::TildeCan => {}
+        EnvExpState::Esc | EnvExpState::EscNoInterpol => {
+            res.push('\\');
         }
         EnvExpState::InEnvName => {
-            let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| if curr_env == "0" {
-                Ok(res.push_str(TERMINAL_NAME))} else {Err(e)});
+            let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
+                if curr_env == "0" {
+                    Ok(res.push_str(TERMINAL_NAME))
+                } else {
+                    Err(e)
+                }
+            });
         }
     }
     res
@@ -1307,11 +1547,14 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     let part_name = path.file_name().unwrap().to_str().unwrap().to_string();
     let dir;
     if path.pop() {
-        if path.is_relative( ) {
+        if path.is_relative() {
             //eprintln!("popped path {:?}", &path);
-            if path.as_os_str().is_empty() { // join with an empty PathBuf actually add slash because behaves as empty file_name 
-                 dir = cwd.to_path_buf();
-            } else {dir = cwd.join(path);}
+            if path.as_os_str().is_empty() {
+                // join with an empty PathBuf actually add slash because behaves as empty file_name
+                dir = cwd.to_path_buf();
+            } else {
+                dir = cwd.join(path);
+            }
         } else {
             dir = path;
         }
@@ -1319,40 +1562,50 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
         dir = cwd.to_path_buf();
     }
     //eprintln!("entered: {cwd:?} {dir:?} {part_name:?}");
-    let files: Vec<String> =
-        match dir.read_dir() {
-            Ok(read_dir) => read_dir
-                .filter_map(|p| p.ok().and_then(|p| {
+    let files: Vec<String> = match dir.read_dir() {
+        Ok(read_dir) => read_dir
+            .filter_map(|p| {
+                p.ok().and_then(|p| {
                     let ep = p.path();
                     let binding = p.file_name();
                     let n = binding.to_string_lossy();
-                    if (!exe || ep.is_executable()) &&
-                        platform_starts_with(&n, &part_name) {
-                            let n = n.to_string();
-                            if ep.is_dir() { Some(n + MAIN_SEPARATOR_STR) } else { Some(n) }
-                        } else { None } } )
-                )
-              .collect(),
-            Err(_) => vec![],
-        };
+                    if (!exe || ep.is_executable()) && platform_starts_with(&n, &part_name) {
+                        let n = n.to_string();
+                        if ep.is_dir() {
+                            Some(n + MAIN_SEPARATOR_STR)
+                        } else {
+                            Some(n)
+                        }
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect(),
+        Err(_) => vec![],
+    };
     let dir = dir.display().to_string();
     //eprintln!("dir: {dir} -> {} for {part_name}", files.len());
     match files.len() {
         0 => format!("{dir}{MAIN_SEPARATOR_STR}{part_name}"),
-        1 => format!("{dir}{MAIN_SEPARATOR_STR}{}",&files[0]),
-        _ => format!("{dir}{MAIN_SEPARATOR_STR}{}\x07",longest_common_prefix(files))
+        1 => format!("{dir}{MAIN_SEPARATOR_STR}{}", &files[0]),
+        _ => format!(
+            "{dir}{MAIN_SEPARATOR_STR}{}\x07",
+            longest_common_prefix(files)
+        ),
     }
 }
 
 #[cfg(target_os = "windows")]
 fn starts_with_ignore_case_ascii(s: &str, prefix: &str) -> bool {
-    s.len() >= prefix.len() &&
-    s[..prefix.len()].eq_ignore_ascii_case(prefix)
+    s.len() >= prefix.len() && s[..prefix.len()].eq_ignore_ascii_case(prefix)
 }
 
 fn platform_starts_with(s: &str, prefix: &str) -> bool {
     #[cfg(target_os = "windows")]
-    { starts_with_ignore_case_ascii(s, prefix) }
+    {
+        starts_with_ignore_case_ascii(s, prefix)
+    }
     #[cfg(unix)]
     s.starts_with(prefix)
 }
@@ -1366,7 +1619,10 @@ fn longest_common_prefix(strs: Vec<String>) -> String {
 
     for i in 1..strs.len() {
         let mut j = 0;
-        while j < prefix.len() && j < strs[i].len() && prefix.chars().nth(j) == strs[i].chars().nth(j) {
+        while j < prefix.len()
+            && j < strs[i].len()
+            && prefix.chars().nth(j) == strs[i].chars().nth(j)
+        {
             j += 1;
         }
         prefix = prefix[..j].to_string();
@@ -1382,89 +1638,111 @@ fn remove_redundant_components(path: &Path) -> PathBuf {
     let mut result = PathBuf::new();
     for component in path.components() {
         match component {
-            Component::CurDir =>  continue,
-            Component::ParentDir => {result.pop();},
+            Component::CurDir => continue,
+            Component::ParentDir => {
+                result.pop();
+            }
             _ => result.push(component),
         }
     }
     result
 }
 
-pub fn unescape(string:&impl AsRef<str>) -> String {
+pub fn unescape(string: &impl AsRef<str>) -> String {
     let mut res = String::new();
     let mut esc = false;
     for c in string.as_ref().chars() {
         match c {
-            '\\' => { if esc { esc=false;} else { esc = true; continue} }
-            ':' | ' ' | '!' => {esc=false;}
-            _ => {if esc {res.push('\\');} esc=false},
+            '\\' => {
+                if esc {
+                    esc = false;
+                } else {
+                    esc = true;
+                    continue;
+                }
+            }
+            ':' | ' ' | '!' => {
+                esc = false;
+            }
+            _ => {
+                if esc {
+                    res.push('\\');
+                }
+                esc = false
+            }
         }
         res.push(c);
     }
     res
 }
 
-fn esc_string_blanks(string:String) -> String {
+fn esc_string_blanks(string: String) -> String {
     let mut res = String::new();
     for c in string.chars() {
         match c {
-            ' ' | '\\' | '"' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '$' => { res.push('\\') }
-            '\'' => { res.push('\\')}//; res.push('\\') } // for correct env processing
-            _ => ()
+            ' ' | '\\' | '"' | '|' | '(' | ')' | '<' | '>' | ';' | '&' | '$' => res.push('\\'),
+            '\'' => res.push('\\'), //; res.push('\\') } // for correct env processing
+            _ => (),
         }
         res.push(c);
     }
     res
 }
 
-fn split_at_star(line: &impl AsRef<str>) -> Option<(String,String)> {
+fn split_at_star(line: &impl AsRef<str>) -> Option<(String, String)> {
     let char_indices = line.as_ref().char_indices();
     let mut state = Default::default();
     let mut current = String::new();
     let mut before = None;
-    for (_,c) in char_indices {
-        match c { 
+    for (_, c) in char_indices {
+        match c {
             '\\' => match state {
                 CmdState::Esc | CmdState::QEsc => current.push(c),
-                CmdState::StartArg => {
-                    state = CmdState::Esc
-                }
-                CmdState::InArg => {
-                    state = CmdState::QEsc
-                }
-                _ => unreachable!()
-            }
+                CmdState::StartArg => state = CmdState::Esc,
+                CmdState::InArg => state = CmdState::QEsc,
+                _ => unreachable!(),
+            },
             '*' => match state {
-                CmdState::Esc => {current.push(c); state = CmdState::StartArg},
+                CmdState::Esc => {
+                    current.push(c);
+                    state = CmdState::StartArg
+                }
                 CmdState::StartArg => {
                     state = CmdState::InArg;
                     before = Some(current.clone());
-                    current . clear()
+                    current.clear()
                 }
                 CmdState::InArg | CmdState::QEsc => {
                     state = CmdState::InArg;
                     current.push(c)
                 }
-                _ => unreachable!()
-            }
+                _ => unreachable!(),
+            },
             _ => match state {
-                CmdState::Esc => { state = CmdState::StartArg;
-                current.push('\\'); current.push(c)},
-                CmdState::QEsc => { state = CmdState::InArg;
-                    current.push('\\'); current.push(c)},
-                CmdState::StartArg | CmdState::InArg => {
+                CmdState::Esc => {
+                    state = CmdState::StartArg;
+                    current.push('\\');
                     current.push(c)
                 }
-                _ => unreachable!()
-            }
+                CmdState::QEsc => {
+                    state = CmdState::InArg;
+                    current.push('\\');
+                    current.push(c)
+                }
+                CmdState::StartArg | CmdState::InArg => current.push(c),
+                _ => unreachable!(),
+            },
         }
     }
     match state {
-        CmdState::InArg => Some((before.unwrap(),current)),
+        CmdState::InArg => Some((before.unwrap(), current)),
         CmdState::StartArg | CmdState::Esc => None,
-        CmdState::QEsc => { current.push('\\'); Some((before.unwrap(),current))},
-        _ => unreachable!()
-    } 
+        CmdState::QEsc => {
+            current.push('\\');
+            Some((before.unwrap(), current))
+        }
+        _ => unreachable!(),
+    }
 }
 
 // Windows related
@@ -1481,79 +1759,119 @@ impl fmt::Display for EntryLen<'_> {
     }
 }
 
-enum Op {DEL, CPY, REN, TYP}
+enum Op {
+    DEL,
+    CPY,
+    REN,
+    TYP,
+}
 struct DeferData {
-	    src: PathBuf,
-	    src_before: String,
-	     src_after: String,
-	     src_wild: Vec<String>,
-	    dst: Option<PathBuf>,
-	    dst_before: Option<String>,
-	    dst_after: Option<String>,
-	    // not for the Rust version
-	    //defer_op: Option<Op>,
+    src: PathBuf,
+    src_before: String,
+    src_after: String,
+    src_wild: Vec<String>,
+    dst: Option<PathBuf>,
+    dst_before: Option<String>,
+    dst_after: Option<String>,
+    // not for the Rust version
+    //defer_op: Option<Op>,
 }
 use std::path::Path;
 impl DeferData {
-    fn from(from:&Path) -> DeferData {
+    fn from(from: &Path) -> DeferData {
         let from_name = from.file_name().unwrap().to_str().unwrap().to_string();
         let from_dir = from.parent().unwrap_or(&PathBuf::from("")).to_path_buf();
         //let mut src_wild = Vec::new();
-        let (src_before,src_after,src_wild) =
-        match split_at_star(&from_name) { //.split_once('*') {
-            None => {
-                (String::new(),String::new(), vec![from_name])
-            }
-            Some((before,after)) => {
-                (before.to_string(),after.to_string(),
-                match (before.as_str(),after.as_str()) {
-                    ("","") => {
-                          from_dir.read_dir().unwrap()
-                          .filter(|r| r.is_ok())
-                          .map(|r| r.unwrap().path().file_name().unwrap().to_str().unwrap().to_string())
-                          .collect::<Vec<String>>()
-                    }
-                    ("",after) => {
-                          from_dir.read_dir().unwrap()
-                          .filter(|r| r.is_ok())
-                          .map(|r| r.unwrap().path().file_name().unwrap().to_str().unwrap().to_string())
-                          .filter(|r| r.ends_with(&after))
-                          .map(|r| r.strip_suffix(after).unwrap().to_string())
-                          .collect::<Vec<String>>()
-                    }
-                    (before,"") => {
-                          from_dir.read_dir().unwrap()
-                          .filter(|r| r.is_ok())
-                          .map(|r| r.unwrap().path().file_name().unwrap().to_str().unwrap().to_string())
-                          .filter(|r| r.starts_with(before))
-                          .map(|r| r.strip_prefix(before).unwrap().to_string())
-                          .collect::<Vec<String>>()
-                    }
-                    (before,after) => {
-                          from_dir.read_dir().unwrap()
-                          .filter(|r| r.is_ok())
-                          .map(|r| r.unwrap().path().file_name().unwrap().to_str().unwrap().to_string())
-                          .filter(|r| r.starts_with(before) && r.ends_with(&after) && r.len() > before.len() + after.len())
-                          .map(|r| r.strip_suffix(after).unwrap().strip_prefix(before).unwrap().to_string())
-                          .collect::<Vec<String>>()
-                    }
-                }
-                )
-            }
+        let (src_before, src_after, src_wild) = match split_at_star(&from_name) {
+            //.split_once('*') {
+            None => (String::new(), String::new(), vec![from_name]),
+            Some((before, after)) => (
+                before.to_string(),
+                after.to_string(),
+                match (before.as_str(), after.as_str()) {
+                    ("", "") => from_dir
+                        .read_dir()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|r| {
+                            if let Ok(r) = r {
+                                Some(r.file_name().display().to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<String>>(),
+                    ("", after) => from_dir
+                        .read_dir()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|r| {
+                            if let Ok(r) = r {
+                                let r = r.file_name().display().to_string();
+                                if let Some(r) = r.strip_suffix(after) {
+                                    Some(r.to_string())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        //.map(str::to_string)
+                        .collect::<Vec<String>>(),
+                    (before, "") => from_dir
+                        .read_dir()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|r| {
+                            if let Ok(r) = r {
+                                let r = r.file_name().display().to_string();
+                                if let Some(r) = r.strip_prefix(before) {
+                                    Some(r.to_string())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<String>>(),
+                    (before, after) => from_dir
+                        .read_dir()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|r| {
+                            if let Ok(r) = r {
+                                let r = r.file_name().display().to_string();
+                                if r.len() > before.len() + after.len()
+                                    && let Some(r) = r.strip_prefix(before)
+                                    && let Some(r) = r.strip_suffix(after)
+                                {
+                                    Some(r.to_string())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<String>>(),
+                },
+            ),
         };
         DeferData {
-    	    src: from_dir,
-    	    src_before,
-    	     src_after,
-    	     src_wild,
-    	    dst: None,
-    	    dst_before: None,
-    	    dst_after: None,
-    	    //defer_op: None,
+            src: from_dir,
+            src_before,
+            src_after,
+            src_wild,
+            dst: None,
+            dst_before: None,
+            dst_after: None,
+            //defer_op: None,
         }
     }
-    
-    fn from_to(from:&Path, to:&Path) -> Self {
+
+    fn from_to(from: &Path, to: &Path) -> Self {
         let mut res = DeferData::from(from);
         let mut to_name = to.file_name().unwrap().to_str().unwrap().to_string();
         let mut to_dir = if to.is_dir() {
@@ -1562,54 +1880,54 @@ impl DeferData {
         } else {
             &to.parent().unwrap_or(&PathBuf::from("")).to_path_buf() // ??? the code needs review in case of no parent
         };
-        // 
-        let (to_before,to_after) =
-        match to_name.split_once('*') {
+        //
+        let (to_before, to_after) = match to_name.split_once('*') {
             None => {
-                // no wild card 
+                // no wild card
                 to_dir = to;
                 (None, None)
             }
-            Some((before,after)) => {
-                (Some(before.to_string()),Some(after.to_string()))
-            }
+            Some((before, after)) => (Some(before.to_string()), Some(after.to_string())),
         };
         res.dst = Some(to_dir.to_path_buf());
-	    res.dst_before = to_before;
-	    res.dst_after = to_after;
+        res.dst_before = to_before;
+        res.dst_after = to_after;
         res
     }
-    
-    fn do_op(&self,op: Op) -> io::Result<usize> {
+
+    fn do_op(&self, op: Op) -> io::Result<usize> {
         let mut succ_count = 0;
         let mut file = self.src.clone();
         for name in &self.src_wild {
-            let name_to =
-            if self.dst.is_some() && self.dst_before.is_some() && self.dst_after.is_some() {
-                format!{"{}{name}{}",self.dst_before.as_ref().unwrap(), self.dst_after.as_ref().unwrap()}
+            let name_to = if self.dst.is_some()
+                && self.dst_before.is_some()
+                && self.dst_after.is_some()
+            {
+                format! {"{}{name}{}",self.dst_before.as_ref().unwrap(), self.dst_after.as_ref().unwrap()}
             } else {
                 String::new()
             };
             //eprintln!{"name to {name_to:?}"}
-            let name = format!{"{}{name}{}",&self.src_before, &self.src_after};
-            file.push(&name) ;
+            let name = format! {"{}{name}{}",&self.src_before, &self.src_after};
+            file.push(&name);
             match op {
                 Op::TYP => {
-                        //eprintln!{"typing: {file:?}"}
+                    //eprintln!{"typing: {file:?}"}
                     let contents = fs::read_to_string(&file)?;
                     send!("{}", contents);
                     succ_count += 1
-                },
+                }
                 Op::DEL => {
                     if file.is_file() && fs::remove_file(&file).is_ok()
-                      || file.is_dir() && fs::remove_dir_all(&file).is_ok() {
-                           succ_count += 1 
+                        || file.is_dir() && fs::remove_dir_all(&file).is_ok()
+                    {
+                        succ_count += 1
                     }
                 }
                 Op::CPY => {
                     let mut file = self.src.clone();
                     let mut dest = self.dst.clone().unwrap();
-                    file.push(&name) ;
+                    file.push(&name);
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     } else {
@@ -1622,24 +1940,24 @@ impl DeferData {
                     } else if file.is_dir() {
                     }
                     //if !name_to.is_empty() {
-                        dest.pop();
+                    dest.pop();
                     //}
                 }
                 Op::REN => {
                     let mut file = self.src.clone();
                     let mut dest = self.dst.clone().unwrap();
-                    file.push(name) ;
+                    file.push(name);
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     }
                     if (file.is_file() || file.is_dir()) && fs::rename(&file, &dest).is_ok() {
-                           // eprintln!{"renaming {file:?} to {dest:?}"}
+                        // eprintln!{"renaming {file:?} to {dest:?}"}
                         succ_count += 1
-                    } 
+                    }
                     if !name_to.is_empty() {
                         dest.pop();
                     }
-                },
+                }
             }
             file.pop();
         }
