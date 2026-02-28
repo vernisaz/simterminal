@@ -414,12 +414,14 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 if !file.has_root() {
                     file = cwd.join(file);
                 }
-                let _ = DeferData::from(&file).do_op(Op::TYP);
+                if let Err(cause) = DeferData::from(&file).do_op(Op::TYP) {
+                    send!("Can't show file : {cause}");
+                }
                 send!("\u{000C}");
             }
             "copy" | "ren" if cfg!(windows) => {
-                if cmd.len() < 3 {
-                    send!("Source and destination have to be provided\u{000C}");
+                if cmd.len() != 3 {
+                    send!("Only one source and destination have to be provided\u{000C}");
                     continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
