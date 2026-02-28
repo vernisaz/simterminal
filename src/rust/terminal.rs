@@ -1616,7 +1616,7 @@ fn longest_common_prefix(strs: Vec<String>) -> String {
     }
 
     let mut prefix = strs[0].clone();
-
+    #[allow(clippy::needless_range_loop)]
     for i in 1..strs.len() {
         let mut j = 0;
         while j < prefix.len()
@@ -1759,6 +1759,7 @@ impl fmt::Display for EntryLen<'_> {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)]
 enum Op {
     DEL,
     CPY,
@@ -1807,12 +1808,11 @@ impl DeferData {
                         .flatten()
                         .filter_map(|r| {
                             if let Ok(r) = r {
-                                let r = r.file_name().display().to_string();
-                                if let Some(r) = r.strip_suffix(after) {
-                                    Some(r.to_string())
-                                } else {
-                                    None
-                                }
+                                r.file_name()
+                                    .display()
+                                    .to_string()
+                                    .strip_suffix(after)
+                                    .map(str::to_string)
                             } else {
                                 None
                             }
@@ -1825,12 +1825,11 @@ impl DeferData {
                         .flatten()
                         .filter_map(|r| {
                             if let Ok(r) = r {
-                                let r = r.file_name().display().to_string();
-                                if let Some(r) = r.strip_prefix(before) {
-                                    Some(r.to_string())
-                                } else {
-                                    None
-                                }
+                                r.file_name()
+                                    .display()
+                                    .to_string()
+                                    .strip_prefix(before)
+                                    .map(str::to_string)
                             } else {
                                 None
                             }
@@ -1900,10 +1899,10 @@ impl DeferData {
         let mut file = self.src.clone();
         for name in &self.src_wild {
             let name_to = if self.dst.is_some()
-                && self.dst_before.is_some()
-                && self.dst_after.is_some()
+                && let Some(dst_before) = &self.dst_before
+                && let Some(dst_after) = &self.dst_after
             {
-                format! {"{}{name}{}",self.dst_before.as_ref().unwrap(), self.dst_after.as_ref().unwrap()}
+                format! {"{dst_before}{name}{dst_after}"}
             } else {
                 String::new()
             };
