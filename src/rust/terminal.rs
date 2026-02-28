@@ -323,7 +323,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         let mut file_name = if let Some(name) = path.file_name() {
                             name.display().to_string().default()
                         } else {
-                            "???".to_string().default()
+                            "???".to_string().red()
                         };
                         if path.is_symlink() {
                             file_name = file_name.cyan()
