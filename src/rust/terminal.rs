@@ -27,7 +27,7 @@ use std::{
     error::Error,
     fmt,
     fs::{self, Metadata, OpenOptions},
-    io::{self, BufRead, BufReader, Read, Stdin, Write, stdout},
+    io::{self, BufRead, BufReader, ErrorKind, Read, Stdin, Write, stdout},
     path::{Component, MAIN_SEPARATOR_STR, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
@@ -1895,7 +1895,7 @@ impl DeferData {
         res
     }
 
-    fn do_op(&self, op: Op) -> io::Result<usize> {
+    fn do_op(&self, op: Op) -> io::Result<u32> {
         let mut succ_count = 0;
         let mut file = self.src.clone();
         for name in &self.src_wild {
@@ -1937,7 +1937,10 @@ impl DeferData {
                         if fs::copy(&file, &dest).is_ok() {
                             succ_count += 1
                         };
-                    } else if file.is_dir() {
+                    } else if file.is_dir()
+                        && let Ok((files, _)) = copy_directory(&file, &dest, &true)
+                    {
+                        succ_count += files
                     }
                     //if !name_to.is_empty() {
                     dest.pop();
@@ -1946,13 +1949,34 @@ impl DeferData {
                 Op::REN => {
                     let mut file = self.src.clone();
                     let mut dest = self.dst.clone().unwrap();
+                    let overwrite = true;
                     file.push(name);
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     }
-                    if (file.is_file() || file.is_dir()) && fs::rename(&file, &dest).is_ok() {
-                        // eprintln!{"renaming {file:?} to {dest:?}"}
-                        succ_count += 1
+                    if file.is_file() || file.is_dir() {
+                        if let Err(err) = fs::rename(&file, &dest)
+                            && err.kind() == ErrorKind::CrossesDevices
+                        {
+                            if file.is_file() && (overwrite || !dest.exists()) {
+                                // probably not rquired
+                                if fs::copy(&file, &dest).is_ok() {
+                                    let _ = fs::remove_file(&file);
+                                }
+                            } else if file.is_dir() {
+                                match copy_directory(&file, &dest, &overwrite) {
+                                    Ok(cnt) => {
+                                        // TODO decide of cases when only some files were copied
+                                        let _ = fs::remove_dir_all(&file);
+                                        succ_count += cnt.0
+                                    }
+                                    Err(_err) => (),
+                                }
+                            }
+                        } else {
+                            // eprintln!{"renaming {file:?} to {dest:?}"}
+                            succ_count += 1
+                        }
                     }
                     if !name_to.is_empty() {
                         dest.pop();
@@ -1963,4 +1987,45 @@ impl DeferData {
         }
         Ok(succ_count)
     }
+}
+
+fn copy_directory(
+    source_dir: &Path,
+    destination_dir: &Path,
+    overwrite: &bool,
+) -> io::Result<(u32, u64)> {
+    fs::create_dir_all(destination_dir)?; // Create the destination directory if it doesn't exist
+    let mut count = 0u32;
+    let mut size = 0u64;
+    for entry in fs::read_dir(source_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            let file_name = path
+                .file_name()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid file name"))?;
+            let dest_path = destination_dir.join(file_name);
+            if !*overwrite && dest_path.exists() {
+                return Err(io::Error::other(format!(
+                    "destination {dest_path:?} exists"
+                )));
+            }
+            size += fs::copy(&path, &dest_path)?;
+            count += 1
+        } else if path.is_dir() {
+            let file_name = path
+                .file_name()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid file name"))?;
+            let dest_path = destination_dir.join(file_name);
+            match copy_directory(&path, &dest_path, overwrite) {
+                Ok((files, copied_size)) => {
+                    count += files;
+                    size += copied_size
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+    Ok((count, size))
 }
