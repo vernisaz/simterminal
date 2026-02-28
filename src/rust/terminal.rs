@@ -320,8 +320,11 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             ));
                         }
                         let path = path.path();
-                        let mut file_name =
-                            path.file_name().unwrap().display().to_string().default();
+                        let mut file_name = if let Some(name) = path.file_name() {
+                            name.display().to_string().default()
+                        } else {
+                            "???".to_string().default()
+                        };
                         if path.is_symlink() {
                             file_name = file_name.cyan()
                         } else if path.is_dir() {
@@ -352,9 +355,10 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     dir.pop();
                     for arg in data.src_wild {
                         dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
-                        let path = dir.as_path().file_name();
-                        res.push_str(path.unwrap().to_str().unwrap());
-                        res.push('\n');
+                        if let Some(file_name) = dir.as_path().file_name() {
+                            res.push_str(&file_name.display().to_string());
+                            res.push('\n');
+                        }
                         dir.pop();
                     }
                     send!("{res}\u{000C}");
