@@ -334,9 +334,7 @@ function ws_term_connect() {
         appendContent(cons,term_frag)
         if (!noPrompt) {
             // print command prompt
-            const prompt = document.createElement("pre")
-            prompt.textContent = '\n$'
-            appendContent(cons,prompt)
+            showPrompt(cons)
             //cons.appendChild(prompt)
         }
         cons.scrollIntoView({ behavior: "smooth", block: "end" })
@@ -352,6 +350,17 @@ function ws_term_connect() {
             console.log(`Oops, ${event}  reconnecting in ${notifRecon}ms because ${event.reason}`)
         setTimeout(ws_term_connect, notifRecon)
      }
+}
+
+function showPrompt(term) {
+    let prompt
+    if (typeof customPrompt === 'function') {
+         prompt = customPrompt();
+    } else {
+        prompt = document.createElement("pre")
+        prompt.textContent = '\n$'
+    }
+    appendContent(term,prompt) 
 }
 
 function ws_term_close() {
@@ -498,9 +507,7 @@ function clearScreen() {
     while (cons.firstChild.tagName != 'CODE') {
         cons.firstChild.remove()
     }
-    const prompt = document.createElement("pre")
-    prompt.textContent = '$'
-    appendContent(cons,prompt)
+    showPrompt(cons)
     // assure focus
     const cmd = document.getElementById('commandarea')
     cmd.focus()
