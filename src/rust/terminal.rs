@@ -336,7 +336,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                     file_name = file_name.bright().green()
                                 }
                                 "zip" | "gz" | "rar" | "7z" | "xz" | "jar" | "tgz" | "bz2"
-                                | "war" => file_name = file_name.red(),
+                                | "war" | "tar" => file_name = file_name.red(),
                                 "jpeg" | "jpg" | "png" | "bmp" | "gif" => {
                                     file_name = file_name.magenta()
                                 }
@@ -502,7 +502,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             }
             "export" => {
                 if cmd.len() != 2 {
-                    send!("Parameter in a form - name=value has to be specified\u{000C}");
+                    send!("A parameter in the form - name=value has to be specified\u{000C}");
                     continue;
                 }
                 if let Some((name, value)) = cmd[1].split_once('=') {
@@ -1166,7 +1166,7 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> {
             if !comp_path.has_root() {
                 comp_path = cwd.join(comp_path)
             }
-            let data = DeferData::from(&comp_path);
+            let data = DeferData::from(&comp_path); // * is processed here
             if data.src_wild.is_empty() {
                 res.push(comp.to_string())
             } else {
