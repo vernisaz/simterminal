@@ -584,7 +584,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         if !out_file.is_empty()
                         /*None*/
                         {
-                            let out_file = interpolate_env(out_file, &child_env);
+                            let out_file = interpolate_env(&out_file, &child_env);
                             let mut file = PathBuf::from(&out_file);
                             if !file.has_root() {
                                 file = cwd.join(file);
@@ -600,7 +600,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             prev = call_process(cmd, &cwd, &stdin, &child_env);
                         }
                     } else {
-                        let in_file = interpolate_env(in_file, &child_env);
+                        let in_file = interpolate_env(&in_file, &child_env);
                         let mut in_file = PathBuf::from(in_file);
                         if !in_file.has_root() {
                             in_file = PathBuf::from(&cwd).join(in_file);
@@ -610,7 +610,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             if out_file.is_empty() {
                                 send!("{}\u{000C}", String::from_utf8_lossy(&res));
                             } else {
-                                let out_file = interpolate_env(out_file, &child_env);
+                                let out_file = interpolate_env(&out_file, &child_env);
                                 let mut out_file = PathBuf::from(out_file);
                                 if !out_file.has_root() {
                                     out_file = PathBuf::from(&cwd).join(out_file);
@@ -965,7 +965,7 @@ fn parse_cmd(
                     CmdState::InArg => {
                         state = CmdState::StartArg;
                         if arg_segment.is_empty().not() {
-                            curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env))
+                            curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
                         }
                         match red_state {
                             RedirectSate::NoRedirect => {
@@ -1026,7 +1026,7 @@ fn parse_cmd(
                     CmdState::InArg => {
                         state = CmdState::DblQuotedArg;
                         if arg_segment.is_empty().not() {
-                            curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
+                            curr_comp.push_str(&interpolate_env(&arg_segment, child_env));
                             arg_segment.clear()
                         }
                     }
@@ -1046,7 +1046,7 @@ fn parse_cmd(
                         arg_segment.push(c)
                     }
                     CmdState::DblQuotedArg => {
-                        curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
+                        curr_comp.push_str(&interpolate_env(&arg_segment, child_env));
                         arg_segment.clear(); // is it really required
                         state = CmdState::InArg;
                     }
@@ -1060,7 +1060,7 @@ fn parse_cmd(
                     }
                     CmdState::InArg => {
                         if arg_segment.is_empty().not() {
-                            curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
+                            curr_comp.push_str(&interpolate_env(&arg_segment, child_env));
                             arg_segment.clear()
                         }
                         state = CmdState::QuotedArg;
@@ -1154,7 +1154,7 @@ fn parse_cmd(
         CmdState::InArg | CmdState::QuotedArg | CmdState::DblQuotedArg => match red_state {
             RedirectSate::NoRedirect => {
                 if state == CmdState::DblQuotedArg || state == CmdState::InArg {
-                    curr_comp.push_str(&interpolate_env(arg_segment, &child_env))
+                    curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
                 }
                 res.push(curr_comp)
             }
@@ -1218,7 +1218,7 @@ fn expand_alias(
             if let Some(element) = expand.next() {
                 interpolated.push(element.to_string());
                 for element in expand {
-                    interpolated.push(interpolate_env(element.to_string(), child_env))
+                    interpolated.push(interpolate_env(element, child_env))
                 }
             }
             cmd.splice(0..1, interpolated);
@@ -1246,7 +1246,7 @@ enum EnvExpState {
     EscNoInterpol,
 }
 
-fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
+fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
     // this function called when parameters are going in the processing
     let mut res = String::new();
     let mut state = Default::default();
@@ -1263,7 +1263,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     }
                     EnvExpState::InEnvName => {
                         if let Some(v) = child_env.get(&curr_env) {
-                            res.push_str(&v)
+                            res.push_str(v)
                         } else if curr_env == "0" {
                             res.push_str(TERMINAL_NAME)
                         }
@@ -1292,7 +1292,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
-                        res.push_str(&v)
+                        res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
@@ -1347,7 +1347,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     }
                     EnvExpState::InEnvName => {
                         if let Some(v) = child_env.get(&curr_env) {
-                            res.push_str(&v)
+                            res.push_str(v)
                         } else if curr_env == "0" {
                             res.push_str(TERMINAL_NAME)
                         }
@@ -1385,7 +1385,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::InEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
-                        res.push_str(&v)
+                        res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
@@ -1419,7 +1419,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::InEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
-                        res.push_str(&v)
+                        res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
@@ -1429,7 +1429,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::InBracketEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
-                        res.push_str(&v)
+                        res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
@@ -1482,7 +1482,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
-                        res.push_str(&v)
+                        res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
@@ -1510,7 +1510,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
-                        res.push_str(&v)
+                        res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
@@ -1535,7 +1535,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
         }
         EnvExpState::InEnvName => {
             if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
+                res.push_str(v)
             } else if curr_env == "0" {
                 res.push_str(TERMINAL_NAME)
             }
