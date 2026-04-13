@@ -28,12 +28,12 @@ use std::{
     fmt,
     fs::{self, Metadata, OpenOptions},
     io::{self, BufRead, BufReader, ErrorKind, Read, Stdin, Write, stdout},
+    ops::Not,
     path::{Component, MAIN_SEPARATOR_STR, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     thread,
     time::UNIX_EPOCH,
-    ops::Not,
 };
 
 use simcolor::Colorized;
@@ -923,7 +923,8 @@ enum RedirectSate {
 }
 
 fn parse_cmd(
-    input: &impl AsRef<str>, child_env: &HashMap<String,String>
+    input: &impl AsRef<str>,
+    child_env: &HashMap<String, String>,
 ) -> (Vec<String>, Vec<Vec<String>>, String, String, bool, bool) {
     // TODO add < for first group and > for last group which can be be the same
     let mut pipe_res = vec![];
@@ -1018,7 +1019,7 @@ fn parse_cmd(
             '"' => {
                 asynch = false;
                 match state {
-                    CmdState::StartArg  => {
+                    CmdState::StartArg => {
                         state = CmdState::DblQuotedArg;
                         //arg_segment.clear()
                     }
@@ -1046,7 +1047,7 @@ fn parse_cmd(
                     }
                     CmdState::DblQuotedArg => {
                         curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
-                        arg_segment.clear();// is it really required
+                        arg_segment.clear(); // is it really required
                         state = CmdState::InArg;
                     }
                 }
@@ -1054,7 +1055,14 @@ fn parse_cmd(
             '\'' => {
                 asynch = false;
                 match state {
-                    CmdState::StartArg | CmdState::InArg => {
+                    CmdState::StartArg => {
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::InArg => {
+                        if arg_segment.is_empty().not() {
+                            curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
+                            arg_segment.clear()
+                        }
                         state = CmdState::QuotedArg;
                     }
                     CmdState::QuotedArg => state = CmdState::InArg,
@@ -1068,13 +1076,11 @@ fn parse_cmd(
                         state = CmdState::QuotedArg;
                     }
                     CmdState::DEsc => {
-                    arg_segment.push('\\');
+                        arg_segment.push('\\');
                         arg_segment.push(c);
                         state = CmdState::DblQuotedArg;
                     }
-                    CmdState::DblQuotedArg => {
-                        arg_segment.push(c)
-                    }
+                    CmdState::DblQuotedArg => arg_segment.push(c),
                 }
             }
             '\\' => {
@@ -1110,12 +1116,10 @@ fn parse_cmd(
                         state = CmdState::InArg;
                         arg_segment.push(other);
                     }
-                    CmdState::QuotedArg  => {
+                    CmdState::QuotedArg => {
                         curr_comp.push(other);
                     }
-                    CmdState::DblQuotedArg => {
-                        arg_segment.push(other)
-                    }
+                    CmdState::DblQuotedArg => arg_segment.push(other),
                     CmdState::Esc => {
                         state = CmdState::InArg;
                         arg_segment.push('\\');
@@ -1149,7 +1153,7 @@ fn parse_cmd(
     match state {
         CmdState::InArg | CmdState::QuotedArg | CmdState::DblQuotedArg => match red_state {
             RedirectSate::NoRedirect => {
-                if state == CmdState::DblQuotedArg || state ==  CmdState::InArg {
+                if state == CmdState::DblQuotedArg || state == CmdState::InArg {
                     curr_comp.push_str(&interpolate_env(arg_segment, &child_env))
                 }
                 res.push(curr_comp)
@@ -1202,7 +1206,11 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> {
     res
 }
 
-fn expand_alias(aliases: &HashMap<String, Vec<String>>, mut cmd: Vec<String>, child_env: &HashMap<String, String>) -> Vec<String> {
+fn expand_alias(
+    aliases: &HashMap<String, Vec<String>>,
+    mut cmd: Vec<String>,
+    child_env: &HashMap<String, String>,
+) -> Vec<String> {
     match aliases.get(&cmd[0]) {
         Some(expand) => {
             let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
@@ -1243,7 +1251,7 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
     let mut res = String::new();
     let mut state = Default::default();
     let mut curr_env = String::new();
- 
+
     for c in s.chars() {
         match c {
             '$' => {
@@ -1255,9 +1263,10 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     }
                     EnvExpState::InEnvName => {
                         if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                            res.push_str(&v)
+                        } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)
+                        }
                         curr_env.clear();
                         state = EnvExpState::ExpEnvName
                     }
@@ -1282,10 +1291,11 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                    if let Some(v) = child_env.get(&curr_env) {
+                        res.push_str(&v)
+                    } else if curr_env == "0" {
+                        res.push_str(TERMINAL_NAME)
+                    }
                     curr_env.clear();
                     state = EnvExpState::Esc
                 }
@@ -1336,10 +1346,11 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                         state = EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
-                    if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                        if let Some(v) = child_env.get(&curr_env) {
+                            res.push_str(&v)
+                        } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)
+                        }
                         curr_env.clear();
                         if let Some(env_value) = env::home_dir() {
                             res.push_str(&env_value.display().to_string())
@@ -1373,10 +1384,11 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
-                if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                    if let Some(v) = child_env.get(&curr_env) {
+                        res.push_str(&v)
+                    } else if curr_env == "0" {
+                        res.push_str(TERMINAL_NAME)
+                    }
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
@@ -1406,19 +1418,21 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
-                if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                    if let Some(v) = child_env.get(&curr_env) {
+                        res.push_str(&v)
+                    } else if curr_env == "0" {
+                        res.push_str(TERMINAL_NAME)
+                    }
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InBracketEnvName => {
-                if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                    if let Some(v) = child_env.get(&curr_env) {
+                        res.push_str(&v)
+                    } else if curr_env == "0" {
+                        res.push_str(TERMINAL_NAME)
+                    }
                     curr_env.clear();
                     state = EnvExpState::InArg
                 }
@@ -1467,10 +1481,11 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::NoInterpol
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                    if let Some(v) = child_env.get(&curr_env) {
+                        res.push_str(&v)
+                    } else if curr_env == "0" {
+                        res.push_str(TERMINAL_NAME)
+                    }
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
@@ -1494,10 +1509,11 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::NoInterpol
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                if let Some(v) = child_env.get(&curr_env) {
-                res.push_str(&v)
-            } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                    if let Some(v) = child_env.get(&curr_env) {
+                        res.push_str(&v)
+                    } else if curr_env == "0" {
+                        res.push_str(TERMINAL_NAME)
+                    }
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
@@ -1515,13 +1531,14 @@ fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
             res.push('\\');
         }
         EnvExpState::ExpEnvName => {
-                res.push('$');
-                }
+            res.push('$');
+        }
         EnvExpState::InEnvName => {
             if let Some(v) = child_env.get(&curr_env) {
                 res.push_str(&v)
             } else if curr_env == "0" {
-                            res.push_str(TERMINAL_NAME)}
+                res.push_str(TERMINAL_NAME)
+            }
         }
     }
     res
