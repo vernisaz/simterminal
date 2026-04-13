@@ -33,6 +33,7 @@ use std::{
     sync::{Arc, Mutex},
     thread,
     time::UNIX_EPOCH,
+    ops::Not,
 };
 
 use simcolor::Colorized;
@@ -167,11 +168,11 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         let line = String::from_utf8_lossy(vec_buf).into_owned();
         prev = None;
         let expand = line.ends_with('\t');
-        let (mut cmd, piped, in_file, out_file, appnd, bkgr) = parse_cmd(&line.trim());
+        let (mut cmd, piped, in_file, out_file, appnd, bkgr) = parse_cmd(&line.trim(), &child_env);
         if cmd.is_empty() {
             continue;
         };
-        //eprintln!("{cmd:?}");
+        //eprintln!("pipe {piped:?} {cmd:?}");
         if expand {
             let ext = esc_string_blanks(extend_name(
                 if out_file.is_empty() {
@@ -222,7 +223,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         send!("{line}"); // \n is coming as part of command
         if piped.is_empty() {
             // think on condition to do that more
-            cmd = expand_alias(&aliases, cmd);
+            cmd = expand_alias(&aliases, cmd, &child_env);
         }
         match cmd[0].as_str() {
             "dir" if cfg!(windows) => {
@@ -583,7 +584,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         if !out_file.is_empty()
                         /*None*/
                         {
-                            let out_file = interpolate_env(out_file);
+                            let out_file = interpolate_env(out_file, &child_env);
                             let mut file = PathBuf::from(&out_file);
                             if !file.has_root() {
                                 file = cwd.join(file);
@@ -599,7 +600,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             prev = call_process(cmd, &cwd, &stdin, &child_env);
                         }
                     } else {
-                        let in_file = interpolate_env(in_file);
+                        let in_file = interpolate_env(in_file, &child_env);
                         let mut in_file = PathBuf::from(in_file);
                         if !in_file.has_root() {
                             in_file = PathBuf::from(&cwd).join(in_file);
@@ -609,7 +610,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             if out_file.is_empty() {
                                 send!("{}\u{000C}", String::from_utf8_lossy(&res));
                             } else {
-                                let out_file = interpolate_env(out_file);
+                                let out_file = interpolate_env(out_file, &child_env);
                                 let mut out_file = PathBuf::from(out_file);
                                 if !out_file.has_root() {
                                     out_file = PathBuf::from(&cwd).join(out_file);
@@ -625,9 +626,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     // piping work
                     let mut res = vec![];
                     for mut pipe_cmd in piped {
-                        pipe_cmd = pipe_cmd.into_iter().map(interpolate_env).collect();
                         pipe_cmd = expand_wildcard(&cwd, pipe_cmd);
-                        pipe_cmd = expand_alias(&aliases, pipe_cmd);
+                        pipe_cmd = expand_alias(&aliases, pipe_cmd, &child_env);
                         match call_process_piped(pipe_cmd.clone(), &cwd, &res, &child_env) {
                             Ok(next_res) => {
                                 res = next_res;
@@ -640,7 +640,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         //eprintln!("Called {pipe_cmd:?} returned {}", String::from_utf8_lossy(&res));
                     }
                     cmd = expand_wildcard(&cwd, cmd);
-                    cmd = expand_alias(&aliases, cmd);
+                    cmd = expand_alias(&aliases, cmd, &child_env);
                     //eprintln!("before call {cmd:?}");
                     res = call_process_piped(cmd, &cwd, &res, &child_env).unwrap();
                     if out_file.is_empty() {
@@ -907,11 +907,11 @@ enum CmdState {
     #[default]
     StartArg,
     QuotedArg,
+    DblQuotedArg,
     InArg,
     Esc,
     QEsc,
-    ApostrInArg,
-    ApEsc,
+    DEsc,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -923,7 +923,7 @@ enum RedirectSate {
 }
 
 fn parse_cmd(
-    input: &impl AsRef<str>,
+    input: &impl AsRef<str>, child_env: &HashMap<String,String>
 ) -> (Vec<String>, Vec<Vec<String>>, String, String, bool, bool) {
     // TODO add < for first group and > for last group which can be be the same
     let mut pipe_res = vec![];
@@ -935,8 +935,8 @@ fn parse_cmd(
     let mut state = Default::default();
     let mut curr_comp = String::new();
     let mut red_state = RedirectSate::default();
-    let mut q_char = '\'';
     let input = input.as_ref();
+    let mut arg_segment = String::with_capacity(256);
     for c in input.chars() {
         match c {
             ' ' | '\t' | '\r' | '\n' | '\u{00a0}' | '|' | '(' | ')' | '<' | '>' | ';' | '&'
@@ -963,6 +963,9 @@ fn parse_cmd(
                     }
                     CmdState::InArg => {
                         state = CmdState::StartArg;
+                        if arg_segment.is_empty().not() {
+                            curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env))
+                        }
                         match red_state {
                             RedirectSate::NoRedirect => {
                                 res.push(curr_comp.clone());
@@ -974,6 +977,7 @@ fn parse_cmd(
                                 output_file = String::from(&curr_comp);
                             }
                         }
+                        arg_segment.clear();
                         curr_comp.clear();
                         match c {
                             '|' => {
@@ -993,69 +997,83 @@ fn parse_cmd(
                     }
                     CmdState::Esc => {
                         state = CmdState::InArg;
-                        curr_comp.push(c)
+                        arg_segment.push(c)
                     }
-                    CmdState::QuotedArg | CmdState::ApostrInArg => {
+                    CmdState::QuotedArg => {
                         curr_comp.push(c);
+                    }
+                    CmdState::DblQuotedArg => {
+                        arg_segment.push(c);
                     }
                     CmdState::QEsc => {
                         state = CmdState::QuotedArg;
                         curr_comp.push(c)
                     }
-                    CmdState::ApEsc => {
-                        state = CmdState::ApostrInArg;
-                        curr_comp.push(c)
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        arg_segment.push(c)
                     }
                 }
             }
-            '"' | '\'' => {
+            '"' => {
                 asynch = false;
                 match state {
-                    CmdState::StartArg => {
-                        state = CmdState::QuotedArg;
-                        q_char = c;
+                    CmdState::StartArg  => {
+                        state = CmdState::DblQuotedArg;
+                        //arg_segment.clear()
                     }
-                    CmdState::QuotedArg if q_char == c => {
-                        state = CmdState::StartArg;
-                        match red_state {
-                            RedirectSate::NoRedirect => {
-                                res.push(curr_comp.clone());
-                                curr_comp.clear();
-                            }
-                            RedirectSate::Input => {
-                                input_file = String::from(&curr_comp);
-                            }
-                            RedirectSate::Output => {
-                                output_file = curr_comp.clone();
-                            }
+                    CmdState::InArg => {
+                        state = CmdState::DblQuotedArg;
+                        if arg_segment.is_empty().not() {
+                            curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
+                            arg_segment.clear()
                         }
-                        red_state = RedirectSate::NoRedirect;
                     }
                     CmdState::QuotedArg => curr_comp.push(c),
-                    CmdState::InArg => {
-                        if c == '\'' {
-                            state = CmdState::ApostrInArg
-                        }
-                        curr_comp.push(c)
-                    }
-                    CmdState::ApostrInArg => {
-                        if c == '\'' {
-                            state = CmdState::InArg
-                        }
-                        curr_comp.push(c)
-                    }
                     CmdState::Esc => {
+                        arg_segment.push('\\');
+                        arg_segment.push(c);
+                        state = CmdState::InArg;
+                    }
+                    CmdState::QEsc => {
                         curr_comp.push('\\');
                         curr_comp.push(c);
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        arg_segment.push(c)
+                    }
+                    CmdState::DblQuotedArg => {
+                        curr_comp.push_str(&interpolate_env(arg_segment.clone(), &child_env));
+                        arg_segment.clear();// is it really required
+                        state = CmdState::InArg;
+                    }
+                }
+            }
+            '\'' => {
+                asynch = false;
+                match state {
+                    CmdState::StartArg | CmdState::InArg => {
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::QuotedArg => state = CmdState::InArg,
+                    CmdState::Esc => {
+                        arg_segment.push('\\');
+                        arg_segment.push(c);
                         state = CmdState::InArg;
                     }
                     CmdState::QEsc => {
                         curr_comp.push(c);
                         state = CmdState::QuotedArg;
                     }
-                    CmdState::ApEsc => {
-                        state = CmdState::ApostrInArg;
-                        curr_comp.push(c)
+                    CmdState::DEsc => {
+                    arg_segment.push('\\');
+                        arg_segment.push(c);
+                        state = CmdState::DblQuotedArg;
+                    }
+                    CmdState::DblQuotedArg => {
+                        arg_segment.push(c)
                     }
                 }
             }
@@ -1068,47 +1086,50 @@ fn parse_cmd(
                     CmdState::QuotedArg => {
                         state = CmdState::QEsc;
                     }
-                    CmdState::ApostrInArg => {
-                        state = CmdState::ApEsc;
+                    CmdState::DblQuotedArg => {
+                        state = CmdState::DEsc;
                     }
                     CmdState::Esc => {
                         state = CmdState::InArg;
-                        curr_comp.push(c);
+                        arg_segment.push(c);
                     }
                     CmdState::QEsc => {
                         state = CmdState::QuotedArg;
                         curr_comp.push(c);
                     }
-                    CmdState::ApEsc => {
-                        state = CmdState::ApostrInArg;
-                        curr_comp.push(c)
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        arg_segment.push(c)
                     }
                 }
             }
             other => {
                 asynch = false;
                 match state {
-                    CmdState::StartArg => {
+                    CmdState::StartArg | CmdState::InArg => {
                         state = CmdState::InArg;
+                        arg_segment.push(other);
+                    }
+                    CmdState::QuotedArg  => {
                         curr_comp.push(other);
                     }
-                    CmdState::QuotedArg | CmdState::InArg | CmdState::ApostrInArg => {
-                        curr_comp.push(other);
+                    CmdState::DblQuotedArg => {
+                        arg_segment.push(other)
                     }
                     CmdState::Esc => {
                         state = CmdState::InArg;
-                        curr_comp.push('\\');
-                        curr_comp.push(c);
+                        arg_segment.push('\\');
+                        arg_segment.push(c);
                     }
                     CmdState::QEsc => {
                         state = CmdState::QuotedArg;
                         curr_comp.push('\\');
                         curr_comp.push(c);
                     }
-                    CmdState::ApEsc => {
-                        state = CmdState::ApostrInArg;
-                        curr_comp.push('\\');
-                        curr_comp.push(c)
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        arg_segment.push('\\');
+                        arg_segment.push(c)
                     }
                 }
             }
@@ -1116,23 +1137,22 @@ fn parse_cmd(
     }
 
     if state == CmdState::Esc {
-        curr_comp.push('\\');
+        arg_segment.push('\\');
         state = CmdState::InArg;
-    } else if state == CmdState::ApEsc {
-        curr_comp.push('\\');
-        state = CmdState::ApostrInArg;
+    } else if state == CmdState::DEsc {
+        arg_segment.push('\\');
+        state = CmdState::DblQuotedArg;
     } else if state == CmdState::QEsc {
         curr_comp.push('\\');
         state = CmdState::QuotedArg;
     }
     match state {
-        CmdState::InArg | CmdState::QuotedArg | CmdState::ApostrInArg => match red_state {
+        CmdState::InArg | CmdState::QuotedArg | CmdState::DblQuotedArg => match red_state {
             RedirectSate::NoRedirect => {
-                if state == CmdState::InArg || state == CmdState::ApostrInArg {
-                    res.push(interpolate_env(curr_comp))
-                } else {
-                    res.push(curr_comp)
+                if state == CmdState::DblQuotedArg || state ==  CmdState::InArg {
+                    curr_comp.push_str(&interpolate_env(arg_segment, &child_env))
                 }
+                res.push(curr_comp)
             }
             RedirectSate::Input => {
                 input_file = String::from(&curr_comp);
@@ -1182,7 +1202,7 @@ fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> {
     res
 }
 
-fn expand_alias(aliases: &HashMap<String, Vec<String>>, mut cmd: Vec<String>) -> Vec<String> {
+fn expand_alias(aliases: &HashMap<String, Vec<String>>, mut cmd: Vec<String>, child_env: &HashMap<String, String>) -> Vec<String> {
     match aliases.get(&cmd[0]) {
         Some(expand) => {
             let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
@@ -1190,7 +1210,7 @@ fn expand_alias(aliases: &HashMap<String, Vec<String>>, mut cmd: Vec<String>) ->
             if let Some(element) = expand.next() {
                 interpolated.push(element.to_string());
                 for element in expand {
-                    interpolated.push(interpolate_env(element.to_string()))
+                    interpolated.push(interpolate_env(element.to_string(), child_env))
                 }
             }
             cmd.splice(0..1, interpolated);
@@ -1218,12 +1238,12 @@ enum EnvExpState {
     EscNoInterpol,
 }
 
-fn interpolate_env(s: String) -> String {
+fn interpolate_env(s: String, child_env: &HashMap<String, String>) -> String {
     // this function called when parameters are going in the processing
     let mut res = String::new();
     let mut state = Default::default();
     let mut curr_env = String::new();
-
+ 
     for c in s.chars() {
         match c {
             '$' => {
@@ -1234,13 +1254,10 @@ fn interpolate_env(s: String) -> String {
                         res.push(c)
                     }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                            if curr_env == "0" {
-                                Ok(res.push_str(TERMINAL_NAME))
-                            } else {
-                                Err(e)
-                            }
-                        });
+                        if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                         curr_env.clear();
                         state = EnvExpState::ExpEnvName
                     }
@@ -1265,13 +1282,10 @@ fn interpolate_env(s: String) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                        if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))
-                        } else {
-                            Err(e)
-                        }
-                    });
+                if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                     curr_env.clear();
                     state = EnvExpState::Esc
                 }
@@ -1322,13 +1336,10 @@ fn interpolate_env(s: String) -> String {
                         state = EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
-                        let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                            if curr_env == "0" {
-                                Ok(res.push_str(TERMINAL_NAME))
-                            } else {
-                                Err(e)
-                            }
-                        });
+                    if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                         curr_env.clear();
                         if let Some(env_value) = env::home_dir() {
                             res.push_str(&env_value.display().to_string())
@@ -1362,13 +1373,10 @@ fn interpolate_env(s: String) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
-                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                        if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))
-                        } else {
-                            Err(e)
-                        }
-                    });
+                if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
@@ -1398,25 +1406,19 @@ fn interpolate_env(s: String) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
-                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                        if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))
-                        } else {
-                            Err(e)
-                        }
-                    });
+                if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InBracketEnvName => {
-                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                        if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))
-                        } else {
-                            Err(e)
-                        }
-                    });
+                if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                     curr_env.clear();
                     state = EnvExpState::InArg
                 }
@@ -1426,7 +1428,7 @@ fn interpolate_env(s: String) -> String {
                     state = EnvExpState::NoInterpol
                 }
             },
-            '\'' => {
+            /*'\'' => {
                 // no interpolation inside ''
                 match state {
                     EnvExpState::InArg | EnvExpState::TildeCan => state = EnvExpState::NoInterpol,
@@ -1443,7 +1445,7 @@ fn interpolate_env(s: String) -> String {
                     | EnvExpState::InEnvName
                     | EnvExpState::ExpEnvName => (), // generally error
                 }
-            }
+            }*/
             '=' | ':' => match state {
                 EnvExpState::NoInterpol => res.push(c),
                 EnvExpState::InArg => {
@@ -1465,13 +1467,10 @@ fn interpolate_env(s: String) -> String {
                     state = EnvExpState::NoInterpol
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                        if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))
-                        } else {
-                            Err(e)
-                        }
-                    });
+                if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
@@ -1495,13 +1494,10 @@ fn interpolate_env(s: String) -> String {
                     state = EnvExpState::NoInterpol
                 }
                 EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
-                    let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                        if curr_env == "0" {
-                            Ok(res.push_str(TERMINAL_NAME))
-                        } else {
-                            Err(e)
-                        }
-                    });
+                if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
@@ -1512,21 +1508,20 @@ fn interpolate_env(s: String) -> String {
     }
     match state {
         EnvExpState::InArg
-        | EnvExpState::ExpEnvName
         | EnvExpState::InBracketEnvName
         | EnvExpState::NoInterpol
         | EnvExpState::TildeCan => {}
         EnvExpState::Esc | EnvExpState::EscNoInterpol => {
             res.push('\\');
         }
-        EnvExpState::InEnvName => {
-            let _ = env::var(&curr_env).map(|v| res.push_str(&v)).or_else(|e| {
-                if curr_env == "0" {
-                    Ok(res.push_str(TERMINAL_NAME))
-                } else {
-                    Err(e)
+        EnvExpState::ExpEnvName => {
+                res.push('$');
                 }
-            });
+        EnvExpState::InEnvName => {
+            if let Some(v) = child_env.get(&curr_env) {
+                res.push_str(&v)
+            } else if curr_env == "0" {
+                            res.push_str(TERMINAL_NAME)}
         }
     }
     res
