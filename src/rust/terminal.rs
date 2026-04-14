@@ -168,7 +168,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         let line = String::from_utf8_lossy(vec_buf).into_owned();
         prev = None;
         let expand = line.ends_with('\t');
-        let (mut cmd, piped, in_file, out_file, appnd, bkgr) = parse_cmd(&line.trim(), &child_env);
+        let (mut cmd, piped, in_file, out_file, appnd, bkgr) =
+            parse_cmd(&line.trim(), &child_env, &cwd);
         if cmd.is_empty() {
             continue;
         };
@@ -571,7 +572,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             _ => {
                 child_env.insert("_".to_string(), cmd[0].clone());
                 if piped.is_empty() {
-                    cmd = expand_wildcard(&cwd, cmd);
                     if in_file.is_empty() && out_file.is_empty() {
                         if bkgr {
                             if let Ok(pid) = call_process_async(&cmd, &cwd, &child_env) {
@@ -626,7 +626,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     // piping work
                     let mut res = vec![];
                     for mut pipe_cmd in piped {
-                        pipe_cmd = expand_wildcard(&cwd, pipe_cmd);
                         pipe_cmd = expand_alias(&aliases, pipe_cmd, &child_env);
                         match call_process_piped(pipe_cmd.clone(), &cwd, &res, &child_env) {
                             Ok(next_res) => {
@@ -639,7 +638,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         }
                         //eprintln!("Called {pipe_cmd:?} returned {}", String::from_utf8_lossy(&res));
                     }
-                    cmd = expand_wildcard(&cwd, cmd);
                     cmd = expand_alias(&aliases, cmd, &child_env);
                     //eprintln!("before call {cmd:?}");
                     res = call_process_piped(cmd, &cwd, &res, &child_env).unwrap();
@@ -667,7 +665,7 @@ fn call_process(
     mut stdin: &Stdin,
     filtered_env: &HashMap<String, String>,
 ) -> Option<Vec<u8>> {
-    let mut binding = Command::new(&cmd[0]);
+    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
@@ -757,7 +755,7 @@ fn call_process_out_file(
     out: &mut dyn Write,
     filtered_env: &HashMap<String, String>,
 ) -> Option<Vec<u8>> {
-    let mut binding = Command::new(&cmd[0]);
+    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
@@ -841,7 +839,7 @@ fn call_process_piped(
     in_pipe: &[u8],
     filtered_env: &HashMap<String, String>,
 ) -> io::Result<Vec<u8>> {
-    let mut binding = Command::new(&cmd[0]);
+    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
@@ -888,7 +886,7 @@ fn call_process_async(
     cwd: &PathBuf,
     filtered_env: &HashMap<String, String>,
 ) -> io::Result<u32> {
-    let mut binding = Command::new(&cmd[0]);
+    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
     let mut command = binding
         .stdout(std::process::Stdio::null())
         .stdin(std::process::Stdio::null())
@@ -925,6 +923,7 @@ enum RedirectSate {
 fn parse_cmd(
     input: &impl AsRef<str>,
     child_env: &HashMap<String, String>,
+    cwd: &Path,
 ) -> (Vec<String>, Vec<Vec<String>>, String, String, bool, bool) {
     // TODO add < for first group and > for last group which can be be the same
     let mut pipe_res = vec![];
@@ -938,6 +937,7 @@ fn parse_cmd(
     let mut red_state = RedirectSate::default();
     let input = input.as_ref();
     let mut arg_segment = String::with_capacity(256);
+    let mut was_blob = false;
     for c in input.chars() {
         match c {
             ' ' | '\t' | '\r' | '\n' | '\u{00a0}' | '|' | '(' | ')' | '<' | '>' | ';' | '&'
@@ -969,7 +969,11 @@ fn parse_cmd(
                         }
                         match red_state {
                             RedirectSate::NoRedirect => {
-                                res.push(curr_comp.clone());
+                                if was_blob {
+                                    expand_wildcard_in_arg(cwd, curr_comp.clone(), &mut res)
+                                } else {
+                                    res.push(curr_comp.clone());
+                                }
                             }
                             RedirectSate::Input => {
                                 input_file = String::from(&curr_comp);
@@ -1021,6 +1025,7 @@ fn parse_cmd(
                 match state {
                     CmdState::StartArg => {
                         state = CmdState::DblQuotedArg;
+                        was_blob = false;
                         //arg_segment.clear()
                     }
                     CmdState::InArg => {
@@ -1057,6 +1062,7 @@ fn parse_cmd(
                 match state {
                     CmdState::StartArg => {
                         state = CmdState::QuotedArg;
+                        was_blob = false;
                     }
                     CmdState::InArg => {
                         if arg_segment.is_empty().not() {
@@ -1109,6 +1115,33 @@ fn parse_cmd(
                     }
                 }
             }
+            '*' => {
+                asynch = false;
+                match state {
+                    CmdState::StartArg | CmdState::InArg => {
+                        state = CmdState::InArg;
+                        arg_segment.push(c);
+                        was_blob = true;
+                    }
+                    CmdState::QuotedArg | CmdState::DblQuotedArg => {
+                        curr_comp.push(c);
+                    }
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
+                        arg_segment.push(c);
+                    }
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
+                        curr_comp.push('\\');
+                        curr_comp.push(c);
+                    }
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        arg_segment.push('\\');
+                        arg_segment.push(c)
+                    }
+                }
+            }
             other => {
                 asynch = false;
                 match state {
@@ -1156,7 +1189,11 @@ fn parse_cmd(
                 if state == CmdState::DblQuotedArg || state == CmdState::InArg {
                     curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
                 }
-                res.push(curr_comp)
+                if was_blob {
+                    expand_wildcard_in_arg(cwd, curr_comp, &mut res)
+                } else {
+                    res.push(curr_comp);
+                }
             }
             RedirectSate::Input => {
                 input_file = String::from(&curr_comp);
@@ -1171,39 +1208,41 @@ fn parse_cmd(
     (res, pipe_res, input_file, output_file, append, asynch)
 }
 
-fn expand_wildcard(cwd: &Path, cmd: Vec<String>) -> Vec<String> {
-    // Vec<Cow<String>>
-    #[cfg(not(target_os = "windows"))]
-    let prog = cmd[0].clone();
-    #[cfg(target_os = "windows")]
-    let mut prog = cmd[0].clone();
-    #[cfg(target_os = "windows")]
+#[inline]
+#[cfg(target_os = "windows")]
+fn adjust_cmd(cwd: &Path, mut prog: String) -> String {
     if prog.starts_with(".\\") {
-        prog = cwd.to_owned().join(prog).display().to_string();
+        cwd.to_owned().join(prog).display().to_string()
+    } else {
+        prog
     }
-    let mut res = vec![prog];
-    for comp in &cmd[1..] {
-        if comp.find('*').is_none() {
-            res.push(comp.to_string());
+}
+#[inline]
+#[cfg(not(target_os = "windows"))]
+fn adjust_cmd(_cwd: &Path, prog: String) -> String {
+    prog
+}
+
+fn expand_wildcard_in_arg(cwd: &Path, arg: String, args: &mut Vec<String>) {
+    if arg.find('*').is_none() {
+        args.push(arg);
+    } else {
+        let mut comp_path = PathBuf::from(&arg);
+        if !comp_path.has_root() {
+            comp_path = cwd.join(comp_path)
+        }
+        let data = DeferData::from(&comp_path); // * is processed here
+        if data.src_wild.is_empty() {
+            args.push(arg)
         } else {
-            let mut comp_path = PathBuf::from(&comp);
-            if !comp_path.has_root() {
-                comp_path = cwd.join(comp_path)
-            }
-            let data = DeferData::from(&comp_path); // * is processed here
-            if data.src_wild.is_empty() {
-                res.push(comp.to_string())
-            } else {
+            comp_path.pop();
+            for arg in data.src_wild {
+                comp_path.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                args.push(comp_path.display().to_string());
                 comp_path.pop();
-                for arg in data.src_wild {
-                    comp_path.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
-                    res.push(comp_path.display().to_string());
-                    comp_path.pop();
-                }
             }
         }
     }
-    res
 }
 
 fn expand_alias(
