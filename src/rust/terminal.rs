@@ -665,7 +665,7 @@ fn call_process(
     mut stdin: &Stdin,
     filtered_env: &HashMap<String, String>,
 ) -> Option<Vec<u8>> {
-    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
+    let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
@@ -755,7 +755,7 @@ fn call_process_out_file(
     out: &mut dyn Write,
     filtered_env: &HashMap<String, String>,
 ) -> Option<Vec<u8>> {
-    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
+    let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
@@ -839,7 +839,7 @@ fn call_process_piped(
     in_pipe: &[u8],
     filtered_env: &HashMap<String, String>,
 ) -> io::Result<Vec<u8>> {
-    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
+    let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
@@ -886,7 +886,7 @@ fn call_process_async(
     cwd: &PathBuf,
     filtered_env: &HashMap<String, String>,
 ) -> io::Result<u32> {
-    let mut binding = Command::new(&adjust_cmd(&cwd, cmd[0].clone()));
+    let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut command = binding
         .stdout(std::process::Stdio::null())
         .stdin(std::process::Stdio::null())
@@ -1210,7 +1210,7 @@ fn parse_cmd(
 
 #[inline]
 #[cfg(target_os = "windows")]
-fn adjust_cmd(cwd: &Path, mut prog: String) -> String {
+fn adjust_cmd(cwd: &Path, prog: String) -> String {
     if prog.starts_with(".\\") {
         cwd.to_owned().join(prog).display().to_string()
     } else {
