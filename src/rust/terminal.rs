@@ -606,7 +606,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             in_file = PathBuf::from(&cwd).join(in_file);
                         }
                         if let Ok(contents) = fs::read(&in_file) {
-                            let res = call_process_piped(cmd, &cwd, &contents, &child_env).unwrap();
+                            let res =
+                                call_process_piped(&cmd, &cwd, &contents, &child_env).unwrap();
                             if out_file.is_empty() {
                                 send!("{}\u{000C}", String::from_utf8_lossy(&res));
                             } else {
@@ -627,11 +628,12 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     let mut res = vec![];
                     for mut pipe_cmd in piped {
                         pipe_cmd = expand_alias(&aliases, pipe_cmd, &child_env);
-                        match call_process_piped(pipe_cmd.clone(), &cwd, &res, &child_env) {
+                        match call_process_piped(&pipe_cmd, &cwd, &res, &child_env) {
                             Ok(next_res) => {
                                 res = next_res;
                             }
                             Err(err) => {
+                                // convert to send!
                                 eprintln!("error {err} in call {pipe_cmd:?}");
                                 break;
                             }
@@ -640,16 +642,22 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     }
                     cmd = expand_alias(&aliases, cmd, &child_env);
                     //eprintln!("before call {cmd:?}");
-                    res = call_process_piped(cmd, &cwd, &res, &child_env).unwrap();
-                    if out_file.is_empty() {
-                        send!("{}\u{000C}", String::from_utf8_lossy(&res));
-                    } else {
-                        let mut out_file = PathBuf::from(out_file);
-                        if !out_file.has_root() {
-                            out_file = PathBuf::from(&cwd).join(out_file);
+                    match call_process_piped(&cmd, &cwd, &res, &child_env) {
+                        Ok(res) => {
+                            if out_file.is_empty() {
+                                send!("{}\u{000C}", String::from_utf8_lossy(&res));
+                            } else {
+                                let mut out_file = PathBuf::from(out_file);
+                                if !out_file.has_root() {
+                                    out_file = PathBuf::from(&cwd).join(out_file);
+                                }
+                                let _ = fs::write(&out_file, res);
+                                send!("\u{000C}");
+                            }
                         }
-                        let _ = fs::write(&out_file, res);
-                        send!("\u{000C}");
+                        Err(err) => {
+                            send!("error {err} in call {cmd:?}\u{000C}");
+                        }
                     }
                 }
             }
@@ -834,7 +842,7 @@ fn call_process_out_file(
 }
 
 fn call_process_piped(
-    cmd: Vec<String>,
+    cmd: &[String],
     cwd: &PathBuf,
     in_pipe: &[u8],
     filtered_env: &HashMap<String, String>,
