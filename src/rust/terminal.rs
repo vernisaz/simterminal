@@ -606,18 +606,23 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             in_file = PathBuf::from(&cwd).join(in_file);
                         }
                         if let Ok(contents) = fs::read(&in_file) {
-                            let res =
-                                call_process_piped(&cmd, &cwd, &contents, &child_env).unwrap();
-                            if out_file.is_empty() {
-                                send!("{}\u{000C}", String::from_utf8_lossy(&res));
-                            } else {
-                                let out_file = interpolate_env(&out_file, &child_env);
-                                let mut out_file = PathBuf::from(out_file);
-                                if !out_file.has_root() {
-                                    out_file = PathBuf::from(&cwd).join(out_file);
+                            match call_process_piped(&cmd, &cwd, &contents, &child_env) {
+                                Ok(res) => {
+                                    if out_file.is_empty() {
+                                        send!("{}\u{000C}", String::from_utf8_lossy(&res));
+                                    } else {
+                                        let out_file = interpolate_env(&out_file, &child_env);
+                                        let mut out_file = PathBuf::from(out_file);
+                                        if !out_file.has_root() {
+                                            out_file = PathBuf::from(&cwd).join(out_file);
+                                        }
+                                        let _ = fs::write(&out_file, res);
+                                        send!("\u{000C}");
+                                    }
                                 }
-                                let _ = fs::write(&out_file, res);
-                                send!("\u{000C}");
+                                Err(err) => {
+                                    send!("Execution of {} failed with {err}\u{000C}", &cmd[0].clone().red());
+                                }
                             }
                         } else {
                             send!("Can't read {}\u{000C}", in_file.display().to_string().red());
@@ -633,8 +638,10 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 res = next_res;
                             }
                             Err(err) => {
-                                // convert to send!
-                                eprintln!("error {err} in call {pipe_cmd:?}");
+                                send!(
+                                    "Piped execution of {} failed with {err}\u{000C}",
+                                    &pipe_cmd[0].clone().red()
+                                );
                                 break;
                             }
                         }
@@ -656,7 +663,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             }
                         }
                         Err(err) => {
-                            send!("error {err} in call {cmd:?}\u{000C}");
+                            send!("Piped execution of {} failed with {err}\u{000C}", &cmd[0].clone().red());
                         }
                     }
                 }
@@ -684,9 +691,8 @@ fn call_process(
     if cmd.len() > 1 {
         process = process.args(&cmd[1..])
     }
-    let process = process.spawn();
     let mut res: Option<Vec<u8>> = None;
-    match process {
+    match process.spawn() {
         Ok(mut process) => {
             // TODO consider
             // let (mut recv, send) = std::io::pipe()?;
@@ -748,7 +754,7 @@ fn call_process(
         }
         Err(err) => {
             send!(
-                "Can't run: {} in {cwd:?} - {err}\u{000C}",
+                "Run of {} in {cwd:?} failed - {err}\u{000C}",
                 cmd[0].clone().red()
             );
         }
@@ -833,7 +839,7 @@ fn call_process_out_file(
         }
         Err(err) => {
             send!(
-                "Can't run: {} in {cwd:?} - {err}\u{000C}",
+                "Run of {} in {cwd:?} failed - {err}\u{000C}",
                 cmd[0].clone().red()
             );
         }
