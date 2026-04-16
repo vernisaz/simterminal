@@ -1219,12 +1219,13 @@ fn parse_cmd(
 #[inline]
 #[cfg(target_os = "windows")]
 fn adjust_cmd(cwd: &Path, prog: String) -> String {
-    if prog.starts_with(".\\") {
+    if prog.starts_with(".\\") || prog.starts_with("..\\") {
         cwd.to_owned().join(prog).display().to_string()
     } else {
         prog
     }
 }
+
 #[inline]
 #[cfg(not(target_os = "windows"))]
 fn adjust_cmd(_cwd: &Path, prog: String) -> String {
