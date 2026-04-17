@@ -1129,7 +1129,7 @@ fn parse_cmd(
                     }
                 }
             }
-            '*' => {
+            '*' if !cfg!(windows) => { // Unix way not workingfor Windows
                 asynch = false;
                 match state {
                     CmdState::StartArg | CmdState::InArg => {
