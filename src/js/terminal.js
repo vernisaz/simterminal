@@ -456,7 +456,7 @@ function sendCommand(cmd) {
           if (event.keyCode == 67) {
        	   sendCtrlC()
        	   event.preventDefault()
-          } else if (event.keyCode == 90){
+          } else if (event.keyCode == 90 || event.keyCode == 68) { // ctrl-D for Windows
           	sendCtrlZ()
           	event.preventDefault()
           } else if (event.keyCode == 76) {

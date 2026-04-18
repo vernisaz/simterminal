@@ -621,7 +621,10 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                     }
                                 }
                                 Err(err) => {
-                                    send!("Execution of {} failed with {err}\u{000C}", &cmd[0].clone().red());
+                                    send!(
+                                        "Execution of {} failed with {err}\u{000C}",
+                                        &cmd[0].clone().red()
+                                    );
                                 }
                             }
                         } else {
@@ -663,7 +666,10 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             }
                         }
                         Err(err) => {
-                            send!("Piped execution of {} failed with {err}\u{000C}", &cmd[0].clone().red());
+                            send!(
+                                "Piped execution of {} failed with {err}\u{000C}",
+                                &cmd[0].clone().red()
+                            );
                         }
                     }
                 }
@@ -717,9 +723,20 @@ fn call_process(
                     while let Ok(len) = stdin.read(&mut buffer)
                         && len > 0
                     {
-                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
-                            send!("^C");
-                            break;
+                        if len == 1 {
+                            if buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
+                                send!("^C");
+                                break;
+                            } else if buffer[0] == 0x1a {
+                                // EOF
+                                stdin_child.flush().unwrap(); 
+                                drop(stdin_child);
+                                #[cfg(target_os = "windows")]
+                                send!("^D");
+                                #[cfg(not(target_os = "windows"))]
+                                send!("^Z");
+                                break;
+                            }
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[0..len]) {
@@ -1129,7 +1146,8 @@ fn parse_cmd(
                     }
                 }
             }
-            '*' if !cfg!(windows) => { // Unix way not workingfor Windows
+            '*' if !cfg!(windows) => {
+                // Unix way not workingfor Windows
                 asynch = false;
                 match state {
                     CmdState::StartArg | CmdState::InArg => {
