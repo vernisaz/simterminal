@@ -1222,24 +1222,26 @@ fn parse_cmd(
         state = CmdState::QuotedArg;
     }
     match state {
-        CmdState::InArg | CmdState::QuotedArg | CmdState::DblQuotedArg => match red_state {
-            RedirectSate::NoRedirect => {
-                if state == CmdState::DblQuotedArg || state == CmdState::InArg {
-                    curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
+        CmdState::InArg | CmdState::QuotedArg | CmdState::DblQuotedArg => {
+            if state == CmdState::DblQuotedArg || state == CmdState::InArg {
+                curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
+            }
+            match red_state {
+                RedirectSate::NoRedirect => {
+                    if was_blob {
+                        expand_wildcard_in_arg(cwd, curr_comp, &mut res)
+                    } else {
+                        res.push(curr_comp);
+                    }
                 }
-                if was_blob {
-                    expand_wildcard_in_arg(cwd, curr_comp, &mut res)
-                } else {
-                    res.push(curr_comp);
+                RedirectSate::Input => {
+                    input_file = String::from(&curr_comp);
+                }
+                RedirectSate::Output => {
+                    output_file = String::from(&curr_comp);
                 }
             }
-            RedirectSate::Input => {
-                input_file = String::from(&curr_comp);
-            }
-            RedirectSate::Output => {
-                output_file = String::from(&curr_comp);
-            }
-        },
+        }
         CmdState::StartArg => (),
         _ => todo!(), // shouldn't happen ever
     }
