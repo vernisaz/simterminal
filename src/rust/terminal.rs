@@ -173,7 +173,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         if cmd.is_empty() {
             continue;
         };
-        //eprintln!("pipe {piped:?} {cmd:?}");
+        //eprintln!("pipe {piped:?} - {in_file} < {cmd:?} > {out_file}");
         if expand {
             let ext = esc_string_blanks(extend_name(
                 if out_file.is_empty() {
@@ -723,6 +723,7 @@ fn call_process(
                     while let Ok(len) = stdin.read(&mut buffer)
                         && len > 0
                     {
+                        let mut start = 0;
                         if len == 1 {
                             if buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
                                 send!("^C");
@@ -737,9 +738,14 @@ fn call_process(
                                 send!("^Z");
                                 break;
                             }
+                        } else if len == 2 && buffer[0] == b'.' && buffer[1] == b'\n' {
+                            drop(stdin_child);
+                            break
+                        } else if len == 3 && buffer[0] == b'.' && buffer[1] == b'.' && buffer[2] == b'\n' {
+                            start = 1;
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
-                        match stdin_child.write_all(&buffer[0..len]) {
+                        match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
                                 send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
@@ -1147,7 +1153,7 @@ fn parse_cmd(
                 }
             }
             '*' if !cfg!(windows) => {
-                // Unix way not workingfor Windows
+                // Unix way not working for Windows
                 asynch = false;
                 match state {
                     CmdState::StartArg | CmdState::InArg => {
