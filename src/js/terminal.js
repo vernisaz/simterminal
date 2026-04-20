@@ -457,7 +457,7 @@ function sendCommand(cmd) {
        	   sendCtrlC()
        	   event.preventDefault()
           } else if (event.keyCode == 90 || event.keyCode == 68) { // ctrl-D for Windows
-          	sendCtrlZ()
+          	sendCtrlZ(cmd)
           	event.preventDefault()
           } else if (event.keyCode == 76) {
          	 clearScreen()
@@ -490,9 +490,12 @@ function sendEnter() {
 	    termWskt.send('\n')
 	}
 }
-function sendCtrlZ() {
+function sendCtrlZ(cmd) {
    if (termWskt && termWskt.readyState===WebSocket.OPEN) {
-	   termWskt.send('\u001A')
+       if (cmd)
+           termWskt.send(cmd.textContent+'\u001A')
+        else
+    	   termWskt.send('\u001A')
 	   document.querySelector('#commandarea').textContent='\xa0'
    }
 }

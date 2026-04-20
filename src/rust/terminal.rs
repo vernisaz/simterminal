@@ -720,36 +720,37 @@ fn call_process(
 
                 s.spawn(|| {
                     let mut buffer = [0_u8; MAX_BLOCK_LEN];
-                    while let Ok(len) = stdin.read(&mut buffer)
+                    while let Ok(mut len) = stdin.read(&mut buffer)
                         && len > 0
                     {
                         let mut start = 0;
-                        if len == 1 {
-                            if buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
+                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
                                 send!("^C");
                                 break;
-                            } else if buffer[0] == 0x1a {
-                                // EOF
-                                stdin_child.flush().unwrap(); 
-                                drop(stdin_child);
-                                #[cfg(target_os = "windows")]
-                                send!("^D");
-                                #[cfg(not(target_os = "windows"))]
-                                send!("^Z");
-                                break;
-                            }
                         } else if len == 2 && buffer[0] == b'.' && buffer[1] == b'\n' {
                             drop(stdin_child);
                             break
                         } else if len == 3 && buffer[0] == b'.' && buffer[1] == b'.' && buffer[2] == b'\n' {
                             start = 1;
                         }
+                        let eof = if buffer[len-1] == 0x1a {
+                                // EOF
+                                len -= 1;
+                                true}else{false};
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
                                 send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
                                 res = None; // user input consumed by the child process
+                                if eof{
+                                drop(stdin_child);
+                                #[cfg(target_os = "windows")]
+                                send!("^D");
+                                #[cfg(not(target_os = "windows"))]
+                                send!("^Z");
+                                break
+                                }
                             }
                             Err(_) => {
                                 res = Some(buffer[0..len].to_vec()); // user input goes in the terminal way
@@ -825,36 +826,37 @@ fn call_process_out_file(
 
                 s.spawn(|| {
                     let mut buffer = [0_u8; MAX_BLOCK_LEN];
-                    while let Ok(len) = stdin.read(&mut buffer)
+                    while let Ok(mut len) = stdin.read(&mut buffer)
                         && len > 0
-                    {
+                    {//eprintln!("l:{}",simweb::to_hex(&buffer[..len]));
                         let mut start = 0;
-                        if len == 1 {
-                            if buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
+                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
                                 send!("^C");
                                 break;
-                            } else if buffer[0] == 0x1a {
-                                // EOF
-                                stdin_child.flush().unwrap(); 
-                                drop(stdin_child);
-                                #[cfg(target_os = "windows")]
-                                send!("^D");
-                                #[cfg(not(target_os = "windows"))]
-                                send!("^Z");
-                                break;
-                            }
                         } else if len == 2 && buffer[0] == b'.' && buffer[1] == b'\n' {
                             drop(stdin_child);
                             break
                         } else if len == 3 && buffer[0] == b'.' && buffer[1] == b'.' && buffer[2] == b'\n' {
                             start = 1;
                         }
-                        //let line = String::from_utf8_lossy(&buffer[0..len]);
+                        let eof = if buffer[len-1] == 0x1a {
+                                // EOF
+                                len -= 1;
+                                true}else{false};
+                                
                         match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
                                 send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
                                 res = None; // user input consumed by the child process
+                                if eof{
+                                drop(stdin_child);
+                                #[cfg(target_os = "windows")]
+                                send!("^D");
+                                #[cfg(not(target_os = "windows"))]
+                                send!("^Z");
+                                break
+                                }
                             }
                             Err(_) => {
                                 res = Some(buffer[0..len].to_vec()); // user input goes in the terminal way
