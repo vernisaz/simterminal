@@ -828,12 +828,29 @@ fn call_process_out_file(
                     while let Ok(len) = stdin.read(&mut buffer)
                         && len > 0
                     {
-                        if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
-                            send!("^C");
-                            break;
+                        let mut start = 0;
+                        if len == 1 {
+                            if buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
+                                send!("^C");
+                                break;
+                            } else if buffer[0] == 0x1a {
+                                // EOF
+                                stdin_child.flush().unwrap(); 
+                                drop(stdin_child);
+                                #[cfg(target_os = "windows")]
+                                send!("^D");
+                                #[cfg(not(target_os = "windows"))]
+                                send!("^Z");
+                                break;
+                            }
+                        } else if len == 2 && buffer[0] == b'.' && buffer[1] == b'\n' {
+                            drop(stdin_child);
+                            break
+                        } else if len == 3 && buffer[0] == b'.' && buffer[1] == b'.' && buffer[2] == b'\n' {
+                            start = 1;
                         }
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
-                        match stdin_child.write_all(&buffer[0..len]) {
+                        match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
                                 send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
