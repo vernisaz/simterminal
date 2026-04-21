@@ -725,31 +725,46 @@ fn call_process(
                     {
                         let mut start = 0;
                         if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
-                                send!("^C");
-                                break;
+                            send!("^C");
+                            break;
                         } else if len == 2 && buffer[0] == b'.' && buffer[1] == b'\n' {
                             drop(stdin_child);
-                            break
-                        } else if len == 3 && buffer[0] == b'.' && buffer[1] == b'.' && buffer[2] == b'\n' {
+                            break;
+                        } else if len == 3
+                            && buffer[0] == b'.'
+                            && buffer[1] == b'.'
+                            && buffer[2] == b'\n'
+                        {
                             start = 1;
                         }
-                        let eof = if buffer[len-1] == 0x1a {
-                                // EOF
-                                len -= 1;
-                                true}else{false};
+                        let eof = if buffer[len - 1] == 0x1a {
+                            // EOF
+                            len -= 1;
+                            if start == len {
+                                drop(stdin_child);
+                                #[cfg(target_os = "windows")]
+                                send!("^D");
+                                #[cfg(not(target_os = "windows"))]
+                                send!("^Z");
+                                break;
+                            }
+                            true
+                        } else {
+                            false
+                        };
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
                         match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
                                 send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
                                 res = None; // user input consumed by the child process
-                                if eof{
-                                drop(stdin_child);
-                                #[cfg(target_os = "windows")]
-                                send!("^D");
-                                #[cfg(not(target_os = "windows"))]
-                                send!("^Z");
-                                break
+                                if eof {
+                                    drop(stdin_child);
+                                    #[cfg(target_os = "windows")]
+                                    send!("^D");
+                                    #[cfg(not(target_os = "windows"))]
+                                    send!("^Z");
+                                    break;
                                 }
                             }
                             Err(_) => {
@@ -828,34 +843,50 @@ fn call_process_out_file(
                     let mut buffer = [0_u8; MAX_BLOCK_LEN];
                     while let Ok(mut len) = stdin.read(&mut buffer)
                         && len > 0
-                    {//eprintln!("l:{}",simweb::to_hex(&buffer[..len]));
+                    {
+                        //eprintln!("l:{}",simweb::to_hex(&buffer[..len]));
                         let mut start = 0;
                         if len == 1 && buffer[0] == 3 && for_kill.lock().unwrap().kill().is_ok() {
-                                send!("^C");
-                                break;
+                            send!("^C");
+                            break;
                         } else if len == 2 && buffer[0] == b'.' && buffer[1] == b'\n' {
                             drop(stdin_child);
-                            break
-                        } else if len == 3 && buffer[0] == b'.' && buffer[1] == b'.' && buffer[2] == b'\n' {
+                            break;
+                        } else if len == 3
+                            && buffer[0] == b'.'
+                            && buffer[1] == b'.'
+                            && buffer[2] == b'\n'
+                        {
                             start = 1;
                         }
-                        let eof = if buffer[len-1] == 0x1a {
-                                // EOF
-                                len -= 1;
-                                true}else{false};
-                                
-                        match stdin_child.write_all(&buffer[start..len]) {
-                            Ok(()) => {
-                                stdin_child.flush().unwrap(); // can be an error?
-                                send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
-                                res = None; // user input consumed by the child process
-                                if eof{
+                        let eof = if buffer[len - 1] == 0x1a {
+                            // EOF
+                            len -= 1;
+                            if start == len {
                                 drop(stdin_child);
                                 #[cfg(target_os = "windows")]
                                 send!("^D");
                                 #[cfg(not(target_os = "windows"))]
                                 send!("^Z");
-                                break
+                                break;
+                            }
+                            true
+                        } else {
+                            false
+                        };
+
+                        match stdin_child.write_all(&buffer[start..len]) {
+                            Ok(()) => {
+                                stdin_child.flush().unwrap(); // can be an error?
+                                send! {"{}", String::from_utf8_lossy(&buffer[0..len])} // echo
+                                res = None; // user input consumed by the child process
+                                if eof {
+                                    drop(stdin_child);
+                                    #[cfg(target_os = "windows")]
+                                    send!("^D");
+                                    #[cfg(not(target_os = "windows"))]
+                                    send!("^Z");
+                                    break;
                                 }
                             }
                             Err(_) => {
