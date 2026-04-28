@@ -926,6 +926,9 @@ fn call_process_piped(
     in_pipe: &[u8],
     filtered_env: &HashMap<String, String>,
 ) -> io::Result<Vec<u8>> {
+    if cfg!(windows) && "echo" == cmd[0] {
+        return Ok(cmd[1].as_bytes().to_vec());
+    }
     let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
