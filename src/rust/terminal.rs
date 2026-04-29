@@ -809,6 +809,7 @@ fn call_process_out_file(
     out: &mut dyn Write,
     filtered_env: &HashMap<String, String>,
 ) -> Option<Vec<u8>> {
+// TODO reuse Windows code from pipe impl
     let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
@@ -951,7 +952,30 @@ fn call_process_piped(
                 }
                 return Ok(contents.as_bytes().to_vec());
             }
-            _ => (), //. TODO dir
+            "dir" => {
+                let names_only = cmd.len() > 1 && cmd[1] == "/b";
+                let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
+                    cwd.clone().join("*")
+                } else {
+                    let mut dir = PathBuf::from(&cmd[if names_only { 2 } else { 1 }]);
+                    if !dir.has_root() {
+                        dir = cwd.join(dir);
+                    }
+                    dir
+                };
+                let data = DeferData::from(&dir);
+                let mut res = String::new();
+                for arg in data.src_wild {
+                    dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                    if let Some(file_name) = dir.as_path().file_name() {
+                        res.push_str(&file_name.display().to_string());
+                        res.push('\n');
+                    }
+                    dir.pop();
+                }
+                return Ok(res.as_bytes().to_vec());
+            }
+            _ => (),
         }
     }
     let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
