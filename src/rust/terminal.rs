@@ -929,27 +929,30 @@ fn call_process_piped(
 ) -> io::Result<Vec<u8>> {
     if cfg!(windows) {
         match cmd[0].as_str() {
-        "echo" => {
-        return Ok(cmd[1].as_bytes().to_vec());}
-        "type" => {
-        if cmd.len() != 2 {
-            return Err(io::Error::other("Wrong number of 'type' arguments"))
-        }
-            let mut file = PathBuf::from(&cmd[1]);
+            "echo" => {
+                return Ok(cmd[1].as_bytes().to_vec());
+            }
+            "type" => {
+                if cmd.len() != 2 {
+                    return Err(io::Error::other("Wrong number of 'type' arguments"));
+                }
+                let mut file = PathBuf::from(&cmd[1]);
                 if !file.has_root() {
                     file = cwd.join(file);
                 }
                 // wild card Windows specific
-                let mut data = DeferData::from(&file); 
-                let mut contents = String::with_capacity(4*1024);
+                let mut data = DeferData::from(&file);
+                let mut contents = String::with_capacity(4 * 1024);
                 for arg in data.src_wild {
-                data.src.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
-                contents.push_str(&fs::read_to_string(&file)?);
-                        data.src.pop();
-                    }
-               return Ok(contents.as_bytes().to_vec());} 
-               _ => () //. TODO dir
-               }
+                    data.src
+                        .push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                    contents.push_str(&fs::read_to_string(&data.src)?);
+                    data.src.pop();
+                }
+                return Ok(contents.as_bytes().to_vec());
+            }
+            _ => (), //. TODO dir
+        }
     }
     let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
