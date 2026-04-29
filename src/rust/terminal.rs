@@ -227,7 +227,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             cmd = expand_alias(&aliases, cmd, &child_env);
         }
         match cmd[0].as_str() {
-            "dir" if cfg!(windows) => {
+            "dir" if cfg!(windows) && out_file.is_empty() => {
                 let names_only = cmd.len() > 1 && cmd[1] == "/b";
                 let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
                     cwd.clone()
@@ -407,7 +407,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     DeferData::from(&file).do_op(Op::DEL).unwrap()
                 );
             }
-            "type" if cfg!(windows) => {
+            "type" if cfg!(windows) && out_file.is_empty() => {
                 if cmd.len() == 1 {
                     send!("No name specified\u{000C}");
                     continue;
@@ -451,7 +451,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     _ => unreachable!(),
                 }
             }
-            "echo" if cfg!(windows) => {
+            "echo" if cfg!(windows) && out_file.is_empty() => {
                 if cmd.len() == 2 {
                     if !out_file.is_empty()
                     /*None*/
@@ -814,10 +814,11 @@ fn call_process_out_file(
             Ok(Some(vec)) => {
                 if let Err(err) = out.write_all(&vec) {
                     send!(
-                        "Error: {err} at writing in {cwd:?} of {}\u{000C}",
+                        "Error: {err} at writing in {cwd:?} of {}",
                         cmd[0].clone().red()
                     );
                 }
+                send!("\u{000C}");
                 return None;
             }
             Err(err) => {
@@ -1363,6 +1364,10 @@ fn expand_wildcard_in_arg(cwd: &Path, arg: String, args: &mut Vec<String>) {
             for arg in data.src_wild {
                 comp_path.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
                 args.push(comp_path.display().to_string());
+                if cfg!(windows) {
+                    // only one argument in Windows
+                    break;
+                }
                 comp_path.pop();
             }
         }
