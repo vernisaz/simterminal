@@ -809,7 +809,27 @@ fn call_process_out_file(
     out: &mut dyn Write,
     filtered_env: &HashMap<String, String>,
 ) -> Option<Vec<u8>> {
-// TODO reuse Windows code from pipe impl
+    if cfg!(windows) {
+        match emulate_unix_cmd(&cmd, cwd) {
+            Ok(Some(vec)) => {
+                if let Err(err) = out.write_all(&vec) {
+                    send!(
+                        "Error: {err} at writing in {cwd:?} of {}\u{000C}",
+                        cmd[0].clone().red()
+                    );
+                }
+                return None;
+            }
+            Err(err) => {
+                send!(
+                    "Run of {} in {cwd:?} failed - {err}\u{000C}",
+                    cmd[0].clone().red()
+                );
+                return None;
+            }
+            Ok(None) => (),
+        }
+    }
     let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
     let mut process = binding
         .stdout(Stdio::piped())
@@ -903,7 +923,11 @@ fn call_process_out_file(
                 while let Ok(l) = stdout.read(&mut buffer)
                     && l > 0
                 {
-                    if out.write(&buffer[..l]).is_err() {
+                    if let Err(err) = out.write(&buffer[..l]) {
+                        send!(
+                            "Error: {err} at writing in {cwd:?} of {}",
+                            cmd[0].clone().red()
+                        );
                         break;
                     }
                 }
@@ -929,53 +953,10 @@ fn call_process_piped(
     filtered_env: &HashMap<String, String>,
 ) -> io::Result<Vec<u8>> {
     if cfg!(windows) {
-        match cmd[0].as_str() {
-            "echo" => {
-                return Ok(cmd[1].as_bytes().to_vec());
-            }
-            "type" => {
-                if cmd.len() != 2 {
-                    return Err(io::Error::other("Wrong number of 'type' arguments"));
-                }
-                let mut file = PathBuf::from(&cmd[1]);
-                if !file.has_root() {
-                    file = cwd.join(file);
-                }
-                // wild card Windows specific
-                let mut data = DeferData::from(&file);
-                let mut contents = String::with_capacity(4 * 1024);
-                for arg in data.src_wild {
-                    data.src
-                        .push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
-                    contents.push_str(&fs::read_to_string(&data.src)?);
-                    data.src.pop();
-                }
-                return Ok(contents.as_bytes().to_vec());
-            }
-            "dir" => {
-                let names_only = cmd.len() > 1 && cmd[1] == "/b";
-                let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
-                    cwd.clone().join("*")
-                } else {
-                    let mut dir = PathBuf::from(&cmd[if names_only { 2 } else { 1 }]);
-                    if !dir.has_root() {
-                        dir = cwd.join(dir);
-                    }
-                    dir
-                };
-                let data = DeferData::from(&dir);
-                let mut res = String::new();
-                for arg in data.src_wild {
-                    dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
-                    if let Some(file_name) = dir.as_path().file_name() {
-                        res.push_str(&file_name.display().to_string());
-                        res.push('\n');
-                    }
-                    dir.pop();
-                }
-                return Ok(res.as_bytes().to_vec());
-            }
-            _ => (),
+        match emulate_unix_cmd(cmd, cwd) {
+            Ok(Some(vec)) => return Ok(vec),
+            Err(err) => return Err(err),
+            Ok(None) => (),
         }
     }
     let mut binding = Command::new(adjust_cmd(cwd, cmd[0].clone()));
@@ -2227,4 +2208,58 @@ fn copy_directory(
         }
     }
     Ok((count, size))
+}
+
+fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
+    match cmd[0].as_str() {
+        "echo" => {
+            if cmd.len() != 2 {
+                return Err(io::Error::other("Wrong number of 'echo' arguments"));
+            }
+            Ok(Some(cmd[1].as_bytes().to_vec()))
+        }
+        "type" => {
+            if cmd.len() != 2 {
+                return Err(io::Error::other("Wrong number of 'type' arguments"));
+            }
+            let mut file = PathBuf::from(&cmd[1]);
+            if !file.has_root() {
+                file = cwd.join(file);
+            }
+            // wild card Windows specific
+            let mut data = DeferData::from(&file);
+            let mut contents = String::with_capacity(4 * 1024);
+            for arg in data.src_wild {
+                data.src
+                    .push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                contents.push_str(&fs::read_to_string(&data.src)?);
+                data.src.pop();
+            }
+            Ok(Some(contents.as_bytes().to_vec()))
+        }
+        "dir" => {
+            let names_only = cmd.len() > 1 && cmd[1] == "/b";
+            let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
+                cwd.to_path_buf().join("*")
+            } else {
+                let mut dir = PathBuf::from(&cmd[if names_only { 2 } else { 1 }]);
+                if !dir.has_root() {
+                    dir = cwd.join(dir);
+                }
+                dir
+            };
+            let data = DeferData::from(&dir);
+            let mut res = String::new();
+            for arg in data.src_wild {
+                dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                if let Some(file_name) = dir.as_path().file_name() {
+                    res.push_str(&file_name.display().to_string());
+                    res.push('\n');
+                }
+                dir.pop();
+            }
+            Ok(Some(res.as_bytes().to_vec()))
+        }
+        _ => Ok(None),
+    }
 }
