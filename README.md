@@ -161,6 +161,10 @@ span+a,pre a {
 }
 ```
 
+## Handling pipe and redirection
+The terminal emulator is handling `|` - pipe and redirection `<>` symbols. Since some Windows commands do not have a corresponding
+executable, the **SimTerminal** simulates their work on the best assumption.
+
 ## How build the crate
 Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate will be stored in *../crates* directory.
 You can also use Cargo.
