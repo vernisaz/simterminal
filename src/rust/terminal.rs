@@ -585,7 +585,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         if !out_file.is_empty()
                         /*None*/
                         {
-                            let out_file = interpolate_env(&out_file, &child_env);
                             let mut file = PathBuf::from(&out_file);
                             if !file.has_root() {
                                 file = cwd.join(file);
@@ -601,7 +600,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             prev = call_process(cmd, &cwd, &stdin, &child_env);
                         }
                     } else {
-                        let in_file = interpolate_env(&in_file, &child_env);
                         let mut in_file = PathBuf::from(in_file);
                         if !in_file.has_root() {
                             in_file = PathBuf::from(&cwd).join(in_file);
@@ -612,7 +610,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                     if out_file.is_empty() {
                                         send!("{}\u{000C}", String::from_utf8_lossy(&res));
                                     } else {
-                                        let out_file = interpolate_env(&out_file, &child_env);
                                         let mut out_file = PathBuf::from(out_file);
                                         if !out_file.has_root() {
                                             out_file = PathBuf::from(&cwd).join(out_file);
