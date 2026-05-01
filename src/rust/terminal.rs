@@ -1872,7 +1872,7 @@ fn esc_string_blanks(string: String) -> String {
     res
 }
 
-fn split_at_star(line: &impl AsRef<str>) -> Option<(String, String)> {
+pub fn split_at_star(line: &impl AsRef<str>) -> Option<(String, String)> {
     let char_indices = line.as_ref().char_indices();
     let mut state = Default::default();
     let mut current = String::new();
@@ -1963,82 +1963,25 @@ struct DeferData {
 use std::path::Path;
 impl DeferData {
     fn from(from: &Path) -> DeferData {
-        let from_name = from.file_name().unwrap().to_str().unwrap().to_string();
+        let from_name = from.file_name().unwrap_or_default().display().to_string();
         let from_dir = from.parent().unwrap_or(&PathBuf::from("")).to_path_buf();
-        //let mut src_wild = Vec::new();
         let (src_before, src_after, src_wild) = match split_at_star(&from_name) {
-            //.split_once('*') {
             None => (String::new(), String::new(), vec![from_name]),
             Some((before, after)) => (
                 before.to_string(),
                 after.to_string(),
-                match (before.as_str(), after.as_str()) {
-                    ("", "") => from_dir
+                from_dir
                         .read_dir()
                         .into_iter()
                         .flatten()
                         .filter_map(|r| {
-                            if let Ok(r) = r {
-                                Some(r.file_name().display().to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<String>>(),
-                    ("", after) => from_dir
-                        .read_dir()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|r| {
-                            if let Ok(r) = r {
-                                r.file_name()
+                                r.ok().and_then(|e| e.file_name()
                                     .display()
                                     .to_string()
-                                    .strip_suffix(after)
-                                    .map(str::to_string)
-                            } else {
-                                None
-                            }
+                                    .strip_prefix(&before).and_then(|name| name.strip_suffix(&after))
+                                    .map(str::to_string))
                         })
-                        //.map(str::to_string)
-                        .collect::<Vec<String>>(),
-                    (before, "") => from_dir
-                        .read_dir()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|r| {
-                            if let Ok(r) = r {
-                                r.file_name()
-                                    .display()
-                                    .to_string()
-                                    .strip_prefix(before)
-                                    .map(str::to_string)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<String>>(),
-                    (before, after) => from_dir
-                        .read_dir()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|r| {
-                            if let Ok(r) = r {
-                                let r = r.file_name().display().to_string();
-                                if r.len() > before.len() + after.len()
-                                    && let Some(r) = r.strip_prefix(before)
-                                    && let Some(r) = r.strip_suffix(after)
-                                {
-                                    Some(r.to_string())
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<String>>(),
-                },
+                        .collect::<Vec<String>>()
             ),
         };
         DeferData {
