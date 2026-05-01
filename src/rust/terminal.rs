@@ -1971,17 +1971,22 @@ impl DeferData {
                 before.to_string(),
                 after.to_string(),
                 from_dir
-                        .read_dir()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|r| {
-                                r.ok().and_then(|e| e.file_name()
-                                    .display()
-                                    .to_string()
-                                    .strip_prefix(&before).and_then(|name| name.strip_suffix(&after))
-                                    .map(str::to_string))
+                    .read_dir()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|r| {
+                        r.ok().and_then(|e| {
+                            let s = e.file_name().display().to_string();
+                            if s.len() >= before.len() + after.len() {
+                                s.strip_prefix(&before)
+                                    .and_then(|name| name.strip_suffix(&after))
+                                    .map(str::to_string)
+                            } else {
+                                None
+                            }
                         })
-                        .collect::<Vec<String>>()
+                    })
+                    .collect(),
             ),
         };
         DeferData {
