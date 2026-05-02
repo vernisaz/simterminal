@@ -1953,10 +1953,7 @@ use std::path::Path;
 impl DeferData {
     fn from(cwd: &Path, from: &Path) -> DeferData {
         let from_name = from.file_name().unwrap_or_default().display().to_string();
-        let from_dir = from
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .to_path_buf();
+        let from_dir = from.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
         let dir = if from_dir.has_root() {
             &from_dir
         } else {
@@ -1986,7 +1983,7 @@ impl DeferData {
             ),
         };
         DeferData {
-            src: from_dir,
+            src: dir.to_path_buf(),
             src_before,
             src_after,
             src_wild,
@@ -2020,6 +2017,7 @@ impl DeferData {
         res.dst = Some(to_dir);
         res.dst_before = to_before;
         res.dst_after = to_after;
+        //eprintln!("from {res:?}");
         res
     }
 
@@ -2035,8 +2033,8 @@ impl DeferData {
             } else {
                 String::new()
             };
-            //eprintln!{"name to {name_to:?}"}
             let name = format! {"{}{name}{}",&self.src_before, &self.src_after};
+            //eprintln!{"{:?} to {:?} {name} to {name_to:?}", self.src, self.dst}
             file.push(&name);
             match op {
                 Op::TYP => {
@@ -2053,9 +2051,7 @@ impl DeferData {
                     }
                 }
                 Op::CPY => {
-                    let mut file = self.src.clone();
                     let mut dest = self.dst.clone().unwrap();
-                    file.push(&name);
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     } else {
@@ -2075,10 +2071,8 @@ impl DeferData {
                     //}
                 }
                 Op::REN => {
-                    let mut file = self.src.clone();
                     let mut dest = self.dst.clone().unwrap();
                     let overwrite = true;
-                    file.push(name);
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     }
