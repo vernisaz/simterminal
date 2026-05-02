@@ -399,7 +399,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
                 send!(
                     "{} file(s) deleted\u{000C}",
-                    DeferData::from(&cwd, &PathBuf::from(&cmd[1])).do_op(Op::DEL).unwrap()
+                    DeferData::from(&cwd, &PathBuf::from(&cmd[1]))
+                        .do_op(Op::DEL)
+                        .unwrap()
                 );
             }
             "type" if cfg!(windows) && out_file.is_empty() => {
@@ -424,13 +426,17 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     "copy" => {
                         send!(
                             "{} file(s) copied\u{000C}",
-                            DeferData::from_to(&cwd, &file, &file_to).do_op(Op::CPY).unwrap()
+                            DeferData::from_to(&cwd, &file, &file_to)
+                                .do_op(Op::CPY)
+                                .unwrap()
                         );
                     }
                     "ren" => {
                         send!(
                             "{} file(s) renamed\u{000C}",
-                            DeferData::from_to(&cwd, &file, &file_to).do_op(Op::REN).unwrap()
+                            DeferData::from_to(&cwd, &file, &file_to)
+                                .do_op(Op::REN)
+                                .unwrap()
                         );
                     }
                     _ => unreachable!(),
@@ -1946,15 +1952,21 @@ use std::path::Path;
 impl DeferData {
     fn from(cwd: &Path, from: &Path) -> DeferData {
         let from_name = from.file_name().unwrap_or_default().display().to_string();
-        let from_dir = from.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
-        let dir = if from_dir.has_root() {&from_dir} else {&cwd.join(&from_dir)};
+        let from_dir = from
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf();
+        let dir = if from_dir.has_root() {
+            &from_dir
+        } else {
+            &cwd.join(&from_dir)
+        };
         let (src_before, src_after, src_wild) = match split_at_star(&from_name) {
             None => (String::new(), String::new(), vec![from_name]),
             Some((before, after)) => (
                 before.to_string(),
                 after.to_string(),
-                dir
-                    .read_dir()
+                dir.read_dir()
                     .into_iter()
                     .flatten()
                     .filter_map(|r| {
@@ -1988,8 +2000,10 @@ impl DeferData {
         let mut res = DeferData::from(cwd, from);
         let mut to_name = to.file_name().unwrap().to_str().unwrap().to_string();
         let to = if !to.has_root() {
-                    cwd.join(to)
-                } else {to.to_path_buf()};
+            cwd.join(to)
+        } else {
+            to.to_path_buf()
+        };
         let mut to_dir = if to.is_dir() {
             to_name = String::new();
             to.clone()
@@ -2005,7 +2019,7 @@ impl DeferData {
             }
             Some((before, after)) => (Some(before.to_string()), Some(after.to_string())),
         };
-        res.dst = Some(to_dir.to_path_buf());
+        res.dst = Some(to_dir);
         res.dst_before = to_before;
         res.dst_after = to_after;
         res
@@ -2174,7 +2188,7 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
             let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
                 cwd.to_path_buf().join("*")
             } else {
-               PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
+                PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
             };
             let data = DeferData::from(&cwd, &dir);
             let mut res = String::new();
