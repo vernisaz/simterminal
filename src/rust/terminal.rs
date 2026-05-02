@@ -1341,7 +1341,7 @@ fn expand_wildcard_in_arg(cwd: &Path, arg: String, args: &mut Vec<String>) {
         args.push(arg);
     } else {
         let mut comp_path = PathBuf::from(&arg);
-        let data = DeferData::from(&cwd, &comp_path); // * is processed here
+        let data = DeferData::from(cwd, &comp_path); // * is processed here
         if data.src_wild.is_empty() {
             args.push(arg)
         } else {
@@ -2173,7 +2173,7 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
                 return Err(io::Error::other("Wrong number of 'type' arguments"));
             }
             // wild card Windows specific
-            let mut data = DeferData::from(&cwd, &PathBuf::from(&cmd[1]));
+            let mut data = DeferData::from(cwd, &PathBuf::from(&cmd[1]));
             let mut contents = String::with_capacity(4 * 1024);
             for arg in data.src_wild {
                 data.src
@@ -2190,7 +2190,7 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
             } else {
                 PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
             };
-            let data = DeferData::from(&cwd, &dir);
+            let data = DeferData::from(cwd, &dir);
             let mut res = String::new();
             for arg in data.src_wild {
                 dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
