@@ -1955,9 +1955,9 @@ impl DeferData {
         let from_name = from.file_name().unwrap_or_default().display().to_string();
         let from_dir = from.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
         let dir = if from_dir.has_root() {
-            &from_dir
+            from_dir
         } else {
-            &cwd.join(&from_dir)
+            cwd.join(&from_dir)
         };
         let (src_wild, src_before, src_after) = match split_at_star(&from_name) {
             None => (vec![from_name], String::new(), String::new()),
@@ -1983,7 +1983,7 @@ impl DeferData {
             ),
         };
         DeferData {
-            src: dir.to_path_buf(),
+            src: dir,
             src_before,
             src_after,
             src_wild,
