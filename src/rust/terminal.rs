@@ -782,8 +782,8 @@ fn call_process(
         }
         Err(err) => {
             send!(
-                "Run of {} in {cwd:?} failed - {err}\u{000C}",
-                cmd[0].clone().red()
+                "Command {} not found in {cwd:?}, reason: {err}\u{000C}",
+                cmd[0].clone().red().bold()
             );
         }
     }
@@ -811,8 +811,8 @@ fn call_process_out_file(
             }
             Err(err) => {
                 send!(
-                    "Run of {} in {cwd:?} failed - {err}\u{000C}",
-                    cmd[0].clone().red()
+                    "Command {} not found in {cwd:?}, reason: {err}\u{000C}",
+                    cmd[0].clone().red().bold()
                 );
                 return None;
             }
@@ -927,8 +927,8 @@ fn call_process_out_file(
         }
         Err(err) => {
             send!(
-                "Run of {} in {cwd:?} failed - {err}\u{000C}",
-                cmd[0].clone().red()
+                "Command {} not found in {cwd:?}, reason: {err}\u{000C}",
+                cmd[0].clone().red().bold()
             );
         }
     }
