@@ -1937,6 +1937,7 @@ enum Op {
     REN,
     TYP,
 }
+#[derive(Debug, Default)]
 struct DeferData {
     src: PathBuf,
     src_before: String,
@@ -1961,11 +1962,9 @@ impl DeferData {
         } else {
             &cwd.join(&from_dir)
         };
-        let (src_before, src_after, src_wild) = match split_at_star(&from_name) {
-            None => (String::new(), String::new(), vec![from_name]),
+        let (src_wild, src_before, src_after) = match split_at_star(&from_name) {
+            None => (vec![from_name], String::new(), String::new()),
             Some((before, after)) => (
-                before.to_string(),
-                after.to_string(),
                 dir.read_dir()
                     .into_iter()
                     .flatten()
@@ -1982,6 +1981,8 @@ impl DeferData {
                         })
                     })
                     .collect(),
+                before,
+                after,
             ),
         };
         DeferData {
@@ -1989,32 +1990,29 @@ impl DeferData {
             src_before,
             src_after,
             src_wild,
-            dst: None,
-            dst_before: None,
-            dst_after: None,
-            //defer_op: None,
+            ..Default::default()
         }
     }
 
     fn from_to(cwd: &Path, from: &Path, to: &Path) -> Self {
         let mut res = DeferData::from(cwd, from);
-        let mut to_name = to.file_name().unwrap().to_str().unwrap().to_string();
+        let to_name;
         let to = if !to.has_root() {
             cwd.join(to)
         } else {
             to.to_path_buf()
         };
-        let mut to_dir = if to.is_dir() {
+        let to_dir = if to.is_dir() {
             to_name = String::new();
-            to.clone()
+            to
         } else {
+            to_name = to.file_name().unwrap().to_str().unwrap().to_string();
             to.parent().unwrap_or(&PathBuf::from("")).to_path_buf() // ??? the code needs review in case of no parent
         };
         //
         let (to_before, to_after) = match split_at_star(&to_name) {
             None => {
                 // no wild card
-                to_dir = to;
                 (None, None)
             }
             Some((before, after)) => (Some(before.to_string()), Some(after.to_string())),
