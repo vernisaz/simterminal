@@ -232,12 +232,11 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
                     cwd.clone()
                 } else {
-                    let mut dir = PathBuf::from(&cmd[if names_only { 2 } else { 1 }]);
-                    if !dir.has_root() {
-                        dir = cwd.join(dir);
-                    }
-                    dir
+                    PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
                 };
+                if dir.has_root() {
+                    dir = cwd.join(dir);
+                }
                 if dir.display().to_string().find('*').is_none() {
                     let Ok(paths) = fs::read_dir(&dir) else {
                         send!("{} is invalid\u{000C}", dir.to_string_lossy().red());
@@ -352,7 +351,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     }
                     send!("{dir}\u{000C}");
                 } else {
-                    let data = DeferData::from(&dir);
+                    let data = DeferData::from(&cwd, &dir);
                     let mut res = String::new();
                     dir.pop();
                     for arg in data.src_wild {
@@ -398,13 +397,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     send!("No name specified\u{000C}");
                     continue;
                 }
-                let mut file = PathBuf::from(&cmd[1]);
-                if !file.has_root() {
-                    file = cwd.join(file)
-                }
                 send!(
                     "{} file(s) deleted\u{000C}",
-                    DeferData::from(&file).do_op(Op::DEL).unwrap()
+                    DeferData::from(&cwd, &PathBuf::from(&cmd[1])).do_op(Op::DEL).unwrap()
                 );
             }
             "type" if cfg!(windows) && out_file.is_empty() => {
@@ -412,12 +407,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     send!("No name specified\u{000C}");
                     continue;
                 }
-                let mut file = PathBuf::from(&cmd[1]);
-                if !file.has_root() {
-                    file = cwd.join(file);
-                }
                 // wild card Windows specific
-                if let Err(cause) = DeferData::from(&file).do_op(Op::TYP) {
+                if let Err(cause) = DeferData::from(&cwd, &PathBuf::from(&cmd[1])).do_op(Op::TYP) {
                     send!("Can't show file : {cause}");
                 }
                 send!("\u{000C}");
@@ -427,25 +418,19 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     send!("Only one source and destination have to be provided\u{000C}");
                     continue;
                 }
-                let mut file = PathBuf::from(&cmd[1]);
-                if !file.has_root() {
-                    file = cwd.join(file);
-                }
-                let mut file_to = PathBuf::from(&cmd[2]);
-                if !file_to.has_root() {
-                    file_to = cwd.join(file_to);
-                }
+                let file = PathBuf::from(&cmd[1]);
+                let file_to = PathBuf::from(&cmd[2]);
                 match cmd[0].as_str() {
                     "copy" => {
                         send!(
                             "{} file(s) copied\u{000C}",
-                            DeferData::from_to(&file, &file_to).do_op(Op::CPY).unwrap()
+                            DeferData::from_to(&cwd, &file, &file_to).do_op(Op::CPY).unwrap()
                         );
                     }
                     "ren" => {
                         send!(
                             "{} file(s) renamed\u{000C}",
-                            DeferData::from_to(&file, &file_to).do_op(Op::REN).unwrap()
+                            DeferData::from_to(&cwd, &file, &file_to).do_op(Op::REN).unwrap()
                         );
                     }
                     _ => unreachable!(),
@@ -1350,10 +1335,7 @@ fn expand_wildcard_in_arg(cwd: &Path, arg: String, args: &mut Vec<String>) {
         args.push(arg);
     } else {
         let mut comp_path = PathBuf::from(&arg);
-        if !comp_path.has_root() {
-            comp_path = cwd.join(comp_path)
-        }
-        let data = DeferData::from(&comp_path); // * is processed here
+        let data = DeferData::from(&cwd, &comp_path); // * is processed here
         if data.src_wild.is_empty() {
             args.push(arg)
         } else {
@@ -1962,15 +1944,16 @@ struct DeferData {
 }
 use std::path::Path;
 impl DeferData {
-    fn from(from: &Path) -> DeferData {
+    fn from(cwd: &Path, from: &Path) -> DeferData {
         let from_name = from.file_name().unwrap_or_default().display().to_string();
-        let from_dir = from.parent().unwrap_or(&PathBuf::from("")).to_path_buf();
+        let from_dir = from.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+        let dir = if from_dir.has_root() {&from_dir} else {&cwd.join(&from_dir)};
         let (src_before, src_after, src_wild) = match split_at_star(&from_name) {
             None => (String::new(), String::new(), vec![from_name]),
             Some((before, after)) => (
                 before.to_string(),
                 after.to_string(),
-                from_dir
+                dir
                     .read_dir()
                     .into_iter()
                     .flatten()
@@ -2001,14 +1984,17 @@ impl DeferData {
         }
     }
 
-    fn from_to(from: &Path, to: &Path) -> Self {
-        let mut res = DeferData::from(from);
+    fn from_to(cwd: &Path, from: &Path, to: &Path) -> Self {
+        let mut res = DeferData::from(cwd, from);
         let mut to_name = to.file_name().unwrap().to_str().unwrap().to_string();
+        let to = if !to.has_root() {
+                    cwd.join(to)
+                } else {to.to_path_buf()};
         let mut to_dir = if to.is_dir() {
             to_name = String::new();
-            to
+            to.clone()
         } else {
-            &to.parent().unwrap_or(&PathBuf::from("")).to_path_buf() // ??? the code needs review in case of no parent
+            to.parent().unwrap_or(&PathBuf::from("")).to_path_buf() // ??? the code needs review in case of no parent
         };
         //
         let (to_before, to_after) = match to_name.split_once('*') {
@@ -2172,12 +2158,8 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
             if cmd.len() != 2 {
                 return Err(io::Error::other("Wrong number of 'type' arguments"));
             }
-            let mut file = PathBuf::from(&cmd[1]);
-            if !file.has_root() {
-                file = cwd.join(file);
-            }
             // wild card Windows specific
-            let mut data = DeferData::from(&file);
+            let mut data = DeferData::from(&cwd, &PathBuf::from(&cmd[1]));
             let mut contents = String::with_capacity(4 * 1024);
             for arg in data.src_wild {
                 data.src
@@ -2192,13 +2174,9 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
             let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
                 cwd.to_path_buf().join("*")
             } else {
-                let mut dir = PathBuf::from(&cmd[if names_only { 2 } else { 1 }]);
-                if !dir.has_root() {
-                    dir = cwd.join(dir);
-                }
-                dir
+               PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
             };
-            let data = DeferData::from(&dir);
+            let data = DeferData::from(&cwd, &dir);
             let mut res = String::new();
             for arg in data.src_wild {
                 dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
