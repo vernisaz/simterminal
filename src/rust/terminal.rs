@@ -1997,7 +1997,7 @@ impl DeferData {
             to.parent().unwrap_or(&PathBuf::from("")).to_path_buf() // ??? the code needs review in case of no parent
         };
         //
-        let (to_before, to_after) = match to_name.split_once('*') {
+        let (to_before, to_after) = match split_at_star(&to_name) {
             None => {
                 // no wild card
                 to_dir = to;
