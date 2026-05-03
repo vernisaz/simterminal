@@ -611,7 +611,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 }
                                 Err(err) => {
                                     send!(
-                                        "Execution of {} failed with {err}\u{000C}",
+                                        "Command {} not found in the pipe, reason: {err}\u{000C}",
                                         &cmd[0].clone().red()
                                     );
                                 }
@@ -631,7 +631,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             }
                             Err(err) => {
                                 send!(
-                                    "Piped execution of {} failed with {err}\u{000C}",
+                                    "Command {} not found in the pipe, reason: {err}\u{000C}",
                                     &pipe_cmd[0].clone().red()
                                 );
                                 break;
@@ -656,7 +656,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         }
                         Err(err) => {
                             send!(
-                                "Piped execution of {} failed with {err}\u{000C}",
+                                "Command {} not found in the pipe, reason: {err}\u{000C}",
                                 &cmd[0].clone().red()
                             );
                         }
