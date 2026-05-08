@@ -302,15 +302,20 @@ function ws_term_connect() {
                         if ( dim )
                             ansi_html += 'opacity: 0.5;'
                         var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
-                        if (typeof extendURL === 'function') {
+                        const procStr = processURL(lineStr)
+                        if (procStr == lineStr && typeof extendURL === 'function') {
                             lineStr = extendURL(lineStr);
+                        } else {
+                            lineStr = procStr
                         }
                         ansi_html += '">' + lineStr +'</span>'
                     } else {
                         var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
+                        // TODO consider copy the code as above
                         if (typeof extendURL === 'function') {
                             lineStr = extendURL(lineStr);
                         } 
+                        
                         ansi_html += lineStr
                     }
                 } else {
@@ -514,6 +519,48 @@ function clearScreen() {
     // assure focus
     const cmd = document.getElementById('commandarea')
     cmd.focus()
+}
+function processURL(text) {
+    const oscEls = text.split(/\x1b\]/g)
+    if (oscEls.length > 1) {
+        // OSC 8 ; ; https://example.com/ ST Link to example website OSC 8 ; ; ST
+        // process only links for now and only in one chunk
+        var res = ''
+        for (el of oscEls) {
+            if (el != '') {
+                if (el.startsWith('8;')) {
+                    // look for second ;
+                    var shift = 1 
+                    do {
+                       shift ++ 
+                    } while (shift < el.length && el.charAt(shift) != ';')
+                    if (shift < el.length) {
+                        // link
+                        shift ++
+                        var start = shift
+                        while (shift < el.length-1 && el.charAt(shift) != '\x1b' && el.charAt(shift+1) != '\\') {
+                           shift ++ 
+                        } 
+                        if (shift > start) {
+                            const link = el.slice(start, shift)
+                            start = shift + 2
+                            const title = el.slice(start)
+                            res += `<a href="${link}" target="_blank">${title}</a>`
+                        } else {
+                            res += el.slice(shift+2)
+                        }
+                    } else {
+                        res += el
+                    }
+                } else {
+                    res += el
+                }
+            } 
+        }
+        return res
+    } else {
+        return text
+    }
 }
 function upTo3Digits(str,offs) {
     let shift = 0
