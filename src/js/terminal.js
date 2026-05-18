@@ -329,11 +329,12 @@ function ws_term_connect() {
             //console.log(ansi_html) // debug
             term_frag.innerHTML = ansi_html
         } else {
-            var lineStr = htmlEncode(chunk)
-            // TODO figure out how to html encode not URL parts
+            var lineStr ;
             if (typeof extendURL === 'function') {
-                lineStr = extendURL(lineStr);
-            } 
+                lineStr = extendURL(chunk);
+            } else {
+                lineStr = htmlEncode(chunk)
+            }
             term_frag.innerHTML = lineStr
         }
         //cons.appendChild(term_frag)
