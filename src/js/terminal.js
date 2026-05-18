@@ -303,28 +303,35 @@ function ws_term_connect() {
                             ansi_html += 'opacity: 0.5;'
                         var lineStr = ans.substring(shift>0?shift + 1:0)
                         const procStr = processURL(lineStr)
-                        if (procStr == lineStr && typeof extendURL === 'function') {
+                        if (procStr == '' && typeof extendURL === 'function') {
                             lineStr = extendURL(lineStr);
                         } else {
-                            lineStr = htmlEncode(procStr)
+                            lineStr = procStr
                         }
                         ansi_html += '">' + lineStr +'</span>'
                     } else {
-                        var lineStr;
-                        // TODO consider copy the code as above
-                        if (typeof extendURL === 'function') {
-                            lineStr = extendURL(ans.substring(shift>0?shift + 1:0));
+                        var lineStr = ans.substring(shift>0?shift + 1:0)
+                        const procStr = processURL(lineStr)
+                        if (procStr == '' && typeof extendURL === 'function') {
+                            lineStr = extendURL(lineStr);
                         } else {
-                            lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
-                        } 
-                        
+                            lineStr = procStr
+                        }
                         ansi_html += lineStr
                     }
                 } else {
                     if (ans.charAt(shift) == 'm')
                         shift ++
-                    if (ans.length > shift) // TODO refactor
-                         ansi_html += htmlEncode(ans.substring(shift))
+                    if (ans.length > shift) {
+                        var lineStr = ans.substring(shift)
+                        const procStr = processURL(lineStr)
+                        if (procStr == '' && typeof extendURL === 'function') {
+                            lineStr = extendURL(lineStr);
+                        } else {
+                            lineStr = procStr
+                        }
+                        ansi_html += lineStr
+                    }
                 }
                 wasEsc = true
             }
@@ -549,21 +556,21 @@ function processURL(text) {
                             const link = el.slice(start, shift)
                             start = shift + 2
                             const title = el.slice(start)
-                            res += `<a href="${link}" target="_blank">${title}</a>`
+                            res += `<a href="${link}" target="_blank">${htmlEncode(title)}</a>`
                         } else {
-                            res += el.slice(shift+2)
+                            res += htmlEncode(el.slice(shift+2))
                         }
                     } else {
-                        res += el
+                        res += htmlEncode(el)
                     }
                 } else {
-                    res += el
+                    res += htmlEncode(el)
                 }
             } 
         }
         return res
     } else {
-        return text
+        return ''
     }
 }
 function upTo3Digits(str,offs) {
