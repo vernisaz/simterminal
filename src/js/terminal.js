@@ -301,19 +301,21 @@ function ws_term_connect() {
                             ansi_html += 'opacity: 0.0;'
                         if ( dim )
                             ansi_html += 'opacity: 0.5;'
-                        var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
+                        var lineStr = ans.substring(shift>0?shift + 1:0)
                         const procStr = processURL(lineStr)
                         if (procStr == lineStr && typeof extendURL === 'function') {
                             lineStr = extendURL(lineStr);
                         } else {
-                            lineStr = procStr
+                            lineStr = htmlEncode(procStr)
                         }
                         ansi_html += '">' + lineStr +'</span>'
                     } else {
-                        var lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
+                        var lineStr;
                         // TODO consider copy the code as above
                         if (typeof extendURL === 'function') {
-                            lineStr = extendURL(lineStr);
+                            lineStr = extendURL(ans.substring(shift>0?shift + 1:0));
+                        } else {
+                            lineStr = htmlEncode(ans.substring(shift>0?shift + 1:0))
                         } 
                         
                         ansi_html += lineStr
