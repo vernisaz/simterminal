@@ -330,6 +330,7 @@ function ws_term_connect() {
             term_frag.innerHTML = ansi_html
         } else {
             var lineStr = htmlEncode(chunk)
+            // TODO figure out how to html encode not URL parts
             if (typeof extendURL === 'function') {
                 lineStr = extendURL(lineStr);
             } 
