@@ -2021,9 +2021,9 @@ impl DeferData {
         res
     }
 
-    fn do_op(&self, op: Op) -> io::Result<u32> {
+    fn do_op(&mut self, op: Op) -> io::Result<u32> {
         let mut succ_count = 0;
-        let mut file = self.src.clone();
+        let file = &mut self.src;
         for name in &self.src_wild {
             let name_to = if self.dst.is_some()
                 && let Some(dst_before) = &self.dst_before

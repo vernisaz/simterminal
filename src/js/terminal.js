@@ -532,6 +532,7 @@ function clearScreen() {
     cmd.focus()
 }
 function processURL(text) {
+    // this function applies HTML encoding
     const oscEls = text.split(/\x1b\]/g)
     if (oscEls.length > 1) {
         // OSC 8 ; ; https://example.com/ ST Link to example website OSC 8 ; ; ST
