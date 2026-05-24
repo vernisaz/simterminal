@@ -2062,7 +2062,7 @@ impl DeferData {
                             succ_count += 1
                         };
                     } else if file.is_dir()
-                        && let Ok((files, _)) = copy_directory(&file, &dest, &true)
+                        && let Ok((files, _)) = copy_directory(file, &dest, &true)
                     {
                         succ_count += files
                     }
@@ -2086,7 +2086,7 @@ impl DeferData {
                                     let _ = fs::remove_file(&file);
                                 }
                             } else if file.is_dir() {
-                                match copy_directory(&file, &dest, &overwrite) {
+                                match copy_directory(file, &dest, &overwrite) {
                                     Ok(cnt) => {
                                         // TODO decide of cases when only some files were copied
                                         let _ = fs::remove_dir_all(&file);
