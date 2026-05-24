@@ -313,8 +313,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 h @ 13..24 => (h - 12, 'P'),
                                 _ => unreachable!(),
                             };
+                            let date = &format!("{m:>2}/{d}/{y:4}");
                             dir.push_str(&format!(
-                                "{:8}{m:>2}/{d:>2}/{y:4}  {h:>2}:{mm:02} {}M {:>14} ",
+                                "{:8}{date:>10}  {h:>2}:{mm:02} {}M {:>14} ",
                                 ' ',
                                 pm,
                                 EntryLen(&metadata)
@@ -2051,7 +2052,7 @@ impl DeferData {
                     }
                 }
                 Op::CPY => {
-                    let mut dest = self.dst.clone().unwrap();
+                    let dest = self.dst.as_mut().unwrap();
                     if !name_to.is_empty() {
                         dest.push(&name_to)
                     } else {
@@ -2062,7 +2063,7 @@ impl DeferData {
                             succ_count += 1
                         };
                     } else if file.is_dir()
-                        && let Ok((files, _)) = copy_directory(file, &dest, &true)
+                        && let Ok((files, _)) = copy_directory(file, dest, &true)
                     {
                         succ_count += files
                     }
@@ -2071,7 +2072,7 @@ impl DeferData {
                     //}
                 }
                 Op::REN => {
-                    let mut dest = self.dst.clone().unwrap();
+                    let dest = self.dst.as_mut().unwrap();
                     let overwrite = true;
                     if !name_to.is_empty() {
                         dest.push(&name_to)
@@ -2086,7 +2087,7 @@ impl DeferData {
                                     let _ = fs::remove_file(&file);
                                 }
                             } else if file.is_dir() {
-                                match copy_directory(file, &dest, &overwrite) {
+                                match copy_directory(file, dest, &overwrite) {
                                     Ok(cnt) => {
                                         // TODO decide of cases when only some files were copied
                                         let _ = fs::remove_dir_all(&file);
