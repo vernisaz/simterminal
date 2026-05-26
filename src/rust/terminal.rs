@@ -243,10 +243,13 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         continue;
                     };
 
-                    let mut dir = format!("    Directory: {}\n\n", dir.display());
+                    let mut res: String;
                     if !names_only {
-                        dir.push_str("Mode                 LastWriteTime         Length Name\n");
-                        dir.push_str("----                 -------------         ------ ----\n");
+                        res = format!("    Directory: {}\n\n", dir.display());
+                        res.push_str("Mode                 LastWriteTime         Length Name\n");
+                        res.push_str("----                 -------------         ------ ----\n");
+                    } else {
+                        res = String::new();
                     }
                     for path in paths {
                         let Ok(path) = path else { continue };
@@ -272,15 +275,15 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             #[cfg(unix)]
                             let archive = false;
                             if metadata.is_dir() {
-                                dir.push('d')
+                                res.push('d')
                             } else {
-                                dir.push('-')
+                                res.push('-')
                             }
-                            dir.push(if archive { 'a' } else { '-' });
+                            res.push(if archive { 'a' } else { '-' });
                             if ro {
-                                dir.push('r')
+                                res.push('r')
                             } else {
-                                dir.push('-')
+                                res.push('-')
                             }
                             #[cfg(target_os = "windows")]
                             {
@@ -290,21 +293,21 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
 
                                 if (attributes & FILE_ATTRIBUTE_HIDDEN) > 0 {
                                     // Check if the hidden attribute is set.
-                                    dir.push('h')
+                                    res.push('h')
                                 } else {
-                                    dir.push('-')
+                                    res.push('-')
                                 }
                                 if (attributes & FILE_ATTRIBUTE_SYSTEM) > 0 {
                                     // Check if the system attribute is set.
-                                    dir.push('s')
+                                    res.push('s')
                                 } else {
-                                    dir.push('-')
+                                    res.push('-')
                                 }
                             }
                             if link {
-                                dir.push('l')
+                                res.push('l')
                             } else {
-                                dir.push('-')
+                                res.push('-')
                             }
                             let (h, pm) = match h {
                                 0 => (12, 'A'),
@@ -314,7 +317,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 _ => unreachable!(),
                             };
                             let date = &format!("{m:>2}/{d}/{y:4}");
-                            dir.push_str(&format!(
+                            res.push_str(&format!(
                                 "{:8}{date:>10}  {h:>2}:{mm:02} {}M {:>14} ",
                                 ' ',
                                 pm,
@@ -347,21 +350,19 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 _ => (),
                             }
                         }
-                        dir.push_str(&format!("{file_name}"));
-                        dir.push('\n')
+                        res.push_str(&format!("{file_name}\n"));
                     }
-                    send!("{dir}\u{000C}");
+                    send!("{res}\u{000C}");
                 } else {
                     let data = DeferData::from(&cwd, &dir);
                     let mut res = String::new();
-                    dir.pop();
                     for arg in data.src_wild {
+                        dir.pop();
                         dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
                         if let Some(file_name) = dir.as_path().file_name() {
                             res.push_str(&file_name.display().to_string());
                             res.push('\n');
                         }
-                        dir.pop();
                     }
                     send!("{res}\u{000C}");
                 }
