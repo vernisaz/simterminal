@@ -234,7 +234,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 } else {
                     PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
                 };
-                if dir.has_root() {
+                if !dir.has_root() {
                     dir = cwd.join(dir);
                 }
                 if dir.display().to_string().find('*').is_none() {
