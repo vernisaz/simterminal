@@ -234,95 +234,97 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 } else {
                     PathBuf::from(&cmd[if names_only { 2 } else { 1 }])
                 };
+                let file_details = |metadata: &Metadata, res: &mut String| {
+                    let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
+                    let (y, m, d, h, mm, _s, _) = simtime::get_datetime(
+                        1970,
+                        (metadata
+                            .modified()
+                            .unwrap()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs() as i64
+                            + tz) as u64,
+                    );
+                    let ro = metadata.permissions().readonly();
+                    let link = metadata.is_symlink();
+                    #[cfg(target_os = "windows")]
+                    const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
+                    #[cfg(target_os = "windows")]
+                    let archive = (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0;
+                    #[cfg(unix)]
+                    let archive = false;
+                    if metadata.is_dir() {
+                        res.push('d')
+                    } else {
+                        res.push('-')
+                    }
+                    res.push(if archive { 'a' } else { '-' });
+                    if ro {
+                        res.push('r')
+                    } else {
+                        res.push('-')
+                    }
+                    #[cfg(target_os = "windows")]
+                    {
+                        let attributes = metadata.file_attributes();
+                        const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
+                        const FILE_ATTRIBUTE_SYSTEM: u32 = 0x00000004;
+
+                        if (attributes & FILE_ATTRIBUTE_HIDDEN) > 0 {
+                            // Check if the hidden attribute is set.
+                            res.push('h')
+                        } else {
+                            res.push('-')
+                        }
+                        if (attributes & FILE_ATTRIBUTE_SYSTEM) > 0 {
+                            // Check if the system attribute is set.
+                            res.push('s')
+                        } else {
+                            res.push('-')
+                        }
+                    }
+                    if link {
+                        res.push('l')
+                    } else {
+                        res.push('-')
+                    }
+                    let (h, pm) = match h {
+                        0 => (12, 'A'),
+                        h @ 1..12 => (h, 'A'),
+                        12 => (12, 'P'),
+                        h @ 13..24 => (h - 12, 'P'),
+                        _ => unreachable!(),
+                    };
+                    let date = &format!("{m:>2}/{d}/{y:4}");
+                    res.push_str(&format!(
+                        "{:8}{date:>10}  {h:>2}:{mm:02} {}M {:>14} ",
+                        ' ',
+                        pm,
+                        EntryLen(&metadata)
+                    ));
+                };
                 if !dir.has_root() {
                     dir = cwd.join(dir);
+                }
+                let mut res: String;
+                if !names_only {
+                    res = format!("    Directory: {}\n\n", dir.display());
+                    res.push_str("Mode                 LastWriteTime         Length Name\n");
+                    res.push_str("----                 -------------         ------ ----\n");
+                } else {
+                    res = String::new();
                 }
                 if dir.display().to_string().find('*').is_none() {
                     let Ok(paths) = fs::read_dir(&dir) else {
                         send!("{} is invalid\u{000C}", dir.to_string_lossy().red());
                         continue;
                     };
-
-                    let mut res: String;
-                    if !names_only {
-                        res = format!("    Directory: {}\n\n", dir.display());
-                        res.push_str("Mode                 LastWriteTime         Length Name\n");
-                        res.push_str("----                 -------------         ------ ----\n");
-                    } else {
-                        res = String::new();
-                    }
                     for path in paths {
                         let Ok(path) = path else { continue };
                         if !names_only {
                             let metadata = path.metadata()?;
-                            let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
-                            let (y, m, d, h, mm, _s, _) = simtime::get_datetime(
-                                1970,
-                                (metadata
-                                    .modified()
-                                    .unwrap()
-                                    .duration_since(UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs() as i64
-                                    + tz) as u64,
-                            );
-                            let ro = metadata.permissions().readonly();
-                            let link = metadata.is_symlink();
-                            #[cfg(target_os = "windows")]
-                            const FILE_ATTRIBUTE_ARCHIVE: u32 = 0x00000020;
-                            #[cfg(target_os = "windows")]
-                            let archive = (metadata.file_attributes() & FILE_ATTRIBUTE_ARCHIVE) > 0;
-                            #[cfg(unix)]
-                            let archive = false;
-                            if metadata.is_dir() {
-                                res.push('d')
-                            } else {
-                                res.push('-')
-                            }
-                            res.push(if archive { 'a' } else { '-' });
-                            if ro {
-                                res.push('r')
-                            } else {
-                                res.push('-')
-                            }
-                            #[cfg(target_os = "windows")]
-                            {
-                                let attributes = metadata.file_attributes();
-                                const FILE_ATTRIBUTE_HIDDEN: u32 = 0x00000002;
-                                const FILE_ATTRIBUTE_SYSTEM: u32 = 0x00000004;
-
-                                if (attributes & FILE_ATTRIBUTE_HIDDEN) > 0 {
-                                    // Check if the hidden attribute is set.
-                                    res.push('h')
-                                } else {
-                                    res.push('-')
-                                }
-                                if (attributes & FILE_ATTRIBUTE_SYSTEM) > 0 {
-                                    // Check if the system attribute is set.
-                                    res.push('s')
-                                } else {
-                                    res.push('-')
-                                }
-                            }
-                            if link {
-                                res.push('l')
-                            } else {
-                                res.push('-')
-                            }
-                            let (h, pm) = match h {
-                                0 => (12, 'A'),
-                                h @ 1..12 => (h, 'A'),
-                                12 => (12, 'P'),
-                                h @ 13..24 => (h - 12, 'P'),
-                                _ => unreachable!(),
-                            };
-                            let date = &format!("{m:>2}/{d}/{y:4}");
-                            res.push_str(&format!(
-                                "{:8}{date:>10}  {h:>2}:{mm:02} {}M {:>14} ",
-                                ' ',
-                                pm,
-                                EntryLen(&metadata)
-                            ));
+                            file_details(&metadata, &mut res);
                         }
                         let path = path.path();
                         let mut file_name = if let Some(name) = path.file_name() {
@@ -355,11 +357,13 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     send!("{res}\u{000C}");
                 } else {
                     let data = DeferData::from(&cwd, &dir);
-                    let mut res = String::new();
                     for arg in data.src_wild {
                         dir.pop();
                         dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
-                        if let Some(file_name) = dir.as_path().file_name() {
+                        if !names_only {
+                            file_details(&dir.metadata()?, &mut res);
+                        }
+                        if let Some(file_name) = dir.file_name() {
                             res.push_str(&file_name.display().to_string());
                             res.push('\n');
                         }
