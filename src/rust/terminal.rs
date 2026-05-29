@@ -392,10 +392,14 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     child_env.insert("PWD".to_string(), cwd.display().to_string());
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
                 } else {
-                    send!(
-                        "cd: no such directory: {}\u{000C}",
-                        cwd_new.to_string_lossy().color_num(161)
-                    );
+                    if cfg!(windows) {
+                        send!("The system cannot find the path specified.\u{000C}");
+                    } else {
+                        send!(
+                            "cd: no such directory: {}\u{000C}",
+                            cwd_new.to_string_lossy().color_num(161)
+                        );
+                    }
                 }
             }
             "del" if cfg!(windows) => {
@@ -412,12 +416,12 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             }
             "type" if cfg!(windows) && out_file.is_empty() => {
                 if cmd.len() == 1 {
-                    send!("No name specified\u{000C}");
+                    send!("The syntax of the command is incorrect.\u{000C}");
                     continue;
                 }
                 // wild card Windows specific
                 if let Err(cause) = DeferData::from(&cwd, &PathBuf::from(&cmd[1])).do_op(Op::TYP) {
-                    send!("Can't show file : {cause}");
+                    send!("Can't show the file : {cause}");
                 }
                 send!("\u{000C}");
             }
