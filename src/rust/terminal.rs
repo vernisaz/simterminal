@@ -1962,6 +1962,7 @@ struct DeferData {
 use std::path::Path;
 impl DeferData {
     fn from(cwd: &Path, from: &Path) -> DeferData {
+    // TODO switch to OsString for Windows and keep a case sensitive copy for wildcard value
         #[cfg(target_os = "windows")]
         let from_name = from
             .file_name()
