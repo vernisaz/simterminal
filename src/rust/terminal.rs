@@ -482,7 +482,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         send!("{} created\u{000C}", cmd[1]);
                     }
                     Err(err) => {
-                        send!("Err: {err} in {} creation\u{000C}", cmd[1]);
+                        send!("Error: {err} in {} creation\u{000C}", cmd[1]);
                     }
                 }
             }
@@ -500,7 +500,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         send!("{} removed\u{000C}", cmd[1]);
                     }
                     Err(err) => {
-                        send!("Err: {err} in removing {}\u{000C}", cmd[1]);
+                        send!("Error: {err} in removing {}\u{000C}", cmd[1]);
                     }
                 }
             }
