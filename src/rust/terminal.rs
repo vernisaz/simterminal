@@ -301,7 +301,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         "{:8}{date:>10}  {h:>2}:{mm:02} {}M {:>14} ",
                         ' ',
                         pm,
-                        EntryLen(&metadata)
+                        EntryLen(metadata)
                     ));
                 };
                 if !dir.has_root() {
@@ -603,7 +603,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     } else {
                         let mut in_file = PathBuf::from(in_file);
                         if !in_file.has_root() {
-                            in_file = PathBuf::from(&cwd).join(in_file);
+                            in_file = cwd.join(in_file);
                         }
                         if let Ok(contents) = fs::read(&in_file) {
                             match call_process_piped(&cmd, &cwd, &contents, &child_env) {
@@ -613,7 +613,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                     } else {
                                         let mut out_file = PathBuf::from(out_file);
                                         if !out_file.has_root() {
-                                            out_file = PathBuf::from(&cwd).join(out_file);
+                                            out_file = cwd.join(out_file);
                                         }
                                         let _ = fs::write(&out_file, res);
                                         send!("\u{000C}");
@@ -658,7 +658,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             } else {
                                 let mut out_file = PathBuf::from(out_file);
                                 if !out_file.has_root() {
-                                    out_file = PathBuf::from(&cwd).join(out_file);
+                                    out_file = cwd.join(out_file);
                                 }
                                 let _ = fs::write(&out_file, res);
                                 send!("\u{000C}");
