@@ -1962,6 +1962,14 @@ struct DeferData {
 use std::path::Path;
 impl DeferData {
     fn from(cwd: &Path, from: &Path) -> DeferData {
+        #[cfg(target_os = "windows")]
+        let from_name = from
+            .file_name()
+            .unwrap_or_default()
+            .display()
+            .to_string()
+            .to_uppercase();
+        #[cfg(not(target_os = "windows"))]
         let from_name = from.file_name().unwrap_or_default().display().to_string();
         let from_dir = from.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
         let dir = if from_dir.has_root() {
@@ -1977,6 +1985,9 @@ impl DeferData {
                     .flatten()
                     .filter_map(|r| {
                         r.ok().and_then(|e| {
+                            #[cfg(target_os = "windows")]
+                            let s = e.file_name().display().to_string().to_uppercase();
+                            #[cfg(not(target_os = "windows"))]
                             let s = e.file_name().display().to_string();
                             if s.len() >= before.len() + after.len() {
                                 s.strip_prefix(&before)
