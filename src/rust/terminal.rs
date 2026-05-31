@@ -1959,7 +1959,7 @@ struct DeferData {
 }
 use std::path::Path;
 impl DeferData {
-    fn from(cwd: &Path, from: &Path) -> DeferData {
+    fn from(cwd: &Path, from: &Path) -> Self {
         let from_name = from.file_name().unwrap_or_default().display().to_string();
         let from_dir = from.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
         let dir = if from_dir.has_root() {
@@ -2066,7 +2066,7 @@ impl DeferData {
                 Op::TYP => {
                     //eprintln!{"typing: {file:?}"}
                     let contents = fs::read_to_string(&file)?;
-                    send!("{}", contents);
+                    send!("{}", contents); // when a file has no ending <CR>, content of the next will continue the current
                     succ_count += 1
                 }
                 Op::DEL => {
@@ -2092,9 +2092,7 @@ impl DeferData {
                     {
                         succ_count += files
                     }
-                    //if !name_to.is_empty() {
                     dest.pop();
-                    //}
                 }
                 Op::REN => {
                     let dest = self.dst.as_mut().unwrap();
