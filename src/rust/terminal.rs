@@ -1962,15 +1962,6 @@ struct DeferData {
 use std::path::Path;
 impl DeferData {
     fn from(cwd: &Path, from: &Path) -> DeferData {
-    // TODO switch to OsString for Windows and keep a case sensitive copy for wildcard value
-        #[cfg(target_os = "windows")]
-        let from_name = from
-            .file_name()
-            .unwrap_or_default()
-            .display()
-            .to_string()
-            .to_uppercase();
-        #[cfg(not(target_os = "windows"))]
         let from_name = from.file_name().unwrap_or_default().display().to_string();
         let from_dir = from.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
         let dir = if from_dir.has_root() {
@@ -1980,29 +1971,43 @@ impl DeferData {
         };
         let (src_wild, src_before, src_after) = match split_at_star(&from_name) {
             None => (vec![from_name], String::new(), String::new()),
-            Some((before, after)) => (
-                dir.read_dir()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|r| {
-                        r.ok().and_then(|e| {
-                            #[cfg(target_os = "windows")]
-                            let s = e.file_name().display().to_string().to_uppercase();
-                            #[cfg(not(target_os = "windows"))]
-                            let s = e.file_name().display().to_string();
-                            if s.len() >= before.len() + after.len() {
-                                s.strip_prefix(&before)
-                                    .and_then(|name| name.strip_suffix(&after))
-                                    .map(str::to_string)
-                            } else {
-                                None
-                            }
+            Some((mut before, mut after)) => {
+                #[cfg(target_os = "windows")]
+                {
+                    before.make_ascii_uppercase();
+                    after.make_ascii_uppercase();
+                }
+                (
+                    dir.read_dir()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|r| {
+                            r.ok().and_then(|e| {
+                                let s = e.file_name().display().to_string();
+                                if s.len() >= before.len() + after.len() {
+                                    #[cfg(target_os = "windows")]
+                                    {
+                                        let su = s.to_ascii_uppercase();
+                                        if su.starts_with(&before) && su.ends_with(&after) {
+                                            Some(s[before.len()..s.len() - after.len()].to_string())
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    #[cfg(not(target_os = "windows"))]
+                                    s.strip_prefix(&before)
+                                        .and_then(|name| name.strip_suffix(&after))
+                                        .map(str::to_string)
+                                } else {
+                                    None
+                                }
+                            })
                         })
-                    })
-                    .collect(),
-                before,
-                after,
-            ),
+                        .collect(),
+                    before,
+                    after,
+                )
+            }
         };
         DeferData {
             src: dir,
