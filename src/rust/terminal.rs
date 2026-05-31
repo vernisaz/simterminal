@@ -391,15 +391,13 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     term.persist_cwd(&cwd);
                     child_env.insert("PWD".to_string(), cwd.display().to_string());
                     send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
+                } else if cfg!(windows) {
+                    send!("The system cannot find the path specified.\u{000C}");
                 } else {
-                    if cfg!(windows) {
-                        send!("The system cannot find the path specified.\u{000C}");
-                    } else {
-                        send!(
-                            "cd: no such directory: {}\u{000C}",
-                            cwd_new.to_string_lossy().color_num(161)
-                        );
-                    }
+                    send!(
+                        "cd: no such directory: {}\u{000C}",
+                        cwd_new.to_string_lossy().color_num(161)
+                    );
                 }
             }
             "del" if cfg!(windows) => {
@@ -1971,6 +1969,7 @@ impl DeferData {
         };
         let (src_wild, src_before, src_after) = match split_at_star(&from_name) {
             None => (vec![from_name], String::new(), String::new()),
+            #[allow(unused_mut)]
             Some((mut before, mut after)) => {
                 #[cfg(target_os = "windows")]
                 {
