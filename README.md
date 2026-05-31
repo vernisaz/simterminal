@@ -37,7 +37,7 @@ fn main() {
     let _ = Commander.main_loop();
 }
 ```
-3. Client part should include *terminal.js*, and then use a code like:
+3. Client part should include *terminal.js*, and then use a code, like:
 ```JavaScript
 const WIN_SERVER = true
 const WS_TERM_URL_BASE = './term'
@@ -127,7 +127,7 @@ HTML can be provided statically as,
    "translated": "./bin/cmdterm"}
 ```
 
-`cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your desired settings.
+`cmdterm` is the name of the executable created in step 2. Actual mapping values will depend on your preferred settings.
 
 `terminal.js` should be stored in _./html/js_ directory.
 
@@ -153,7 +153,7 @@ function extendURL(lineStr) {
     });
 }
 ```
-Optionally add CSS to avoid decoration of links:
+Optionally add CSS to avoid a decoration of links:
 ```CSS
 span+a,pre a {
   color: inherit;
@@ -162,13 +162,13 @@ span+a,pre a {
 ```
 
 ## Handling pipe and redirection
-The terminal emulator is handling `|` - pipe and redirection `<>` symbols. Since some Windows commands do not have a corresponding
+The terminal emulator acknowledges `|` - pipe and redirection `<>` symbols. Since some Windows commands do not have a corresponding
 executable, the **SimTerminal** simulates their work on the best assumption.
 
 ## How build the crate
 Use [RustBee](https://github.com/vernisaz/rust_bee) for that. The built crate will be stored in *../crates* directory.
 You can also use Cargo.
-The three dependency crates are required:
+The three dependency crates are:
 - The [Simple Time](https://github.com/vernisaz/simtime)
 - The [SimWeb](https://github.com/vernisaz/simweb)
 - The [Simple Color](https://github.com/vernisaz/simcolor)
