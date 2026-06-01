@@ -226,6 +226,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             // think on condition to do that more
             cmd = expand_alias(&aliases, cmd, &child_env);
         }
+        #[cfg(target_os = "windows")]
+        cmd[0].make_ascii_lowercase();
         match cmd[0].as_str() {
             "dir" if cfg!(windows) && out_file.is_empty() => {
                 let names_only = cmd.len() > 1 && cmd[1] == "/b";
@@ -1372,7 +1374,11 @@ fn expand_alias(
     mut cmd: Vec<String>,
     child_env: &HashMap<String, String>,
 ) -> Vec<String> {
-    match aliases.get(&cmd[0]) {
+    #[cfg(not(target_os = "windows"))]
+    let alias = cmd[0];
+    #[cfg(target_os = "windows")]
+    let alias = cmd[0].to_ascii_lowercase();
+    match aliases.get(&alias) {
         Some(expand) => {
             let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
             let mut expand = expand.iter();
@@ -2177,7 +2183,7 @@ fn copy_directory(
 }
 
 fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
-    match cmd[0].as_str() {
+    match cmd[0].to_ascii_lowercase().as_str() {
         "echo" => {
             if cmd.len() != 2 {
                 return Err(io::Error::other("Wrong number of 'echo' arguments"));
