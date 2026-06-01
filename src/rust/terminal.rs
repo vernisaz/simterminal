@@ -391,8 +391,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 if cwd_new.is_dir() {
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
-                    child_env.insert("PWD".to_string(), cwd.display().to_string());
-                    send!("{}\u{000C}", cwd.to_string_lossy().color_num(DIR_COLOR));
+                    let pwd_disp = cwd.canonicalize()?.display().to_string();
+                    child_env.insert("PWD".to_string(), pwd_disp.to_string());
+                    send!("{}\u{000C}", pwd_disp.color_num(DIR_COLOR));
                 } else if cfg!(windows) {
                     send!("The system cannot find the path specified.\u{000C}");
                 } else {
