@@ -1375,10 +1375,10 @@ fn expand_alias(
     child_env: &HashMap<String, String>,
 ) -> Vec<String> {
     #[cfg(not(target_os = "windows"))]
-    let alias = cmd[0];
+    let alias = &cmd[0];
     #[cfg(target_os = "windows")]
-    let alias = cmd[0].to_ascii_lowercase();
-    match aliases.get(&alias) {
+    let alias = &cmd[0].to_ascii_lowercase();
+    match aliases.get(alias) {
         Some(expand) => {
             let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
             let mut expand = expand.iter();
