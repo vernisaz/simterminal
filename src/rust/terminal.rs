@@ -227,8 +227,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             cmd = expand_alias(&aliases, cmd, &child_env);
         }
         #[cfg(target_os = "windows")]
-        cmd[0].make_ascii_lowercase();
-        match cmd[0].as_str() {
+        let cmd_ = cmd[0].to_ascii_lowercase();
+        match cmd_.as_str() {
             "dir" if cfg!(windows) && out_file.is_empty() => {
                 let names_only = cmd.len() > 1 && cmd[1] == "/b";
                 let mut dir = if cmd.len() == if names_only { 2 } else { 1 } {
