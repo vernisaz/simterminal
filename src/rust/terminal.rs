@@ -228,6 +228,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         }
         #[cfg(target_os = "windows")]
         let cmd_ = cmd[0].to_ascii_lowercase();
+        #[cfg(not(target_os = "windows"))]
+        let cmd_ = &cmd[0];
         match cmd_.as_str() {
             "dir" if cfg!(windows) && out_file.is_empty() => {
                 let names_only = cmd.len() > 1 && cmd[1] == "/b";
