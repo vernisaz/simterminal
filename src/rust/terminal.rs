@@ -392,6 +392,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
                     let pwd_disp = cwd.canonicalize()?.display().to_string();
+                    #[cfg(target_os = "windows")]
+                    let pwd_disp = &pwd_disp[4..];
                     child_env.insert("PWD".to_string(), pwd_disp.to_string());
                     send!("{}\u{000C}", pwd_disp.color_num(DIR_COLOR));
                 } else if cfg!(windows) {
