@@ -405,8 +405,10 @@ function sendCommand(cmd) {
                 } else if (inputStr == 'exit' && typeof closeTerminal === 'function') {
                     cmd.textContent='\xa0'
                     closeTerminal()
-                } else { 
-                    termWskt.send(inputStr+'\n')
+                } else {
+                    const strings = inputStr.split('\n')
+                    for (str of strings)
+                        termWskt.send(str+'\n')
                 }
                const commIdx = commandBuffer.indexOf(cmd.textContent)
                if (commIdx < 0)
