@@ -475,7 +475,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             }
             "md" | "mkdir" if cfg!(windows) => {
                 if cmd.len() == 1 {
-                    send!("No name specified\u{000C}");
+                    send!("No directory name is specified\u{000C}");
                     continue;
                 }
                 let mut file = PathBuf::from(&cmd[1]);
@@ -545,7 +545,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                                 child_env.insert(name.to_string(), value.to_string());
                             }
                         } else {
-                            send!("The parameter has to be in a form: name=value");
+                            send!("The parameter has to be specified as: name=value");
                         }
                     }
                     _ => {
@@ -569,7 +569,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         value.split_ascii_whitespace().map(str::to_string).collect(),
                     );
                 } else {
-                    send!("Invalid number of arguments of alias");
+                    send!("Invalid number of arguments of the alias");
                 }
                 send!("\u{000C}");
             }
