@@ -52,6 +52,9 @@ pub trait Terminal {
     /// - home directory
     /// - command aliases
     /// - version
+    /// 
+    /// since an alias may include not only command substitution, but also pipe of several command,
+    /// the current solution has a serious design flaw (resolving it will happen in one of the next versions)
     fn init(&self) -> (PathBuf, PathBuf, HashMap<String, Vec<String>>, &str);
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
