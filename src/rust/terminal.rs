@@ -401,6 +401,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     }
                 }
                 cwd_new = remove_redundant_components(&cwd_new);
+                //eprintln!("new dir {cwd_new:?}");
                 if cwd_new.is_dir() {
                     cwd = cwd_new;
                     term.persist_cwd(&cwd);
@@ -1421,9 +1422,8 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
                                 cmd_with_alias.replace_range(i_start..i, alias_val);
                                 return Cow::Owned(cmd_with_alias);
                             }
-                        } else {
-                            alias_susp = true
                         }
+                        alias_susp = c == '|';
                         alias.clear();
                     }
                     CmdState::Esc => {
@@ -1900,7 +1900,11 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
             PathBuf::from(&entered)
         };
     //eprintln!("entered: {path:?} {cwd:?}");
-    let part_name = path.file_name().unwrap().to_str().unwrap().to_string();
+    let part_name = if let Some(name) = path.file_name() {
+        name.to_str().unwrap().to_string()
+    } else {
+        String::new()
+    };
     let dir;
     if path.pop() {
         if path.is_relative() {
