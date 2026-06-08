@@ -575,11 +575,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     && let Some((name, value)) = cmd.get(1).unwrap().split_once('=')
                 {
                     let name = name.trim();
-                    let value = value.trim_matches(['"', '\'', ' ']);
-                    aliases.insert(
-                        name.to_string(),
-                        value.split_ascii_whitespace().map(str::to_string).collect(),
-                    );
+                    aliases.insert(name.to_string(), value.to_string());
                 } else {
                     send!("Invalid number of arguments of the alias");
                 }
@@ -1565,8 +1561,7 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
                 return Cow::Owned(cmd_with_alias);
             }
         }
-        CmdState::StartArg => (),
-        _ => todo!(), // it shouldn't happen ever
+        _ => (),
     }
     Cow::Borrowed(cmd_line)
 }
