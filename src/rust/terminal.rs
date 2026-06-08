@@ -22,6 +22,7 @@ extern crate simweb;
 #[cfg(target_os = "windows")]
 use std::os::windows::prelude::*;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     env,
     error::Error,
@@ -52,10 +53,10 @@ pub trait Terminal {
     /// - home directory
     /// - command aliases
     /// - version
-    /// 
+    ///
     /// since an alias may include not only command substitution, but also pipe of several command,
     /// the current solution has a serious design flaw (resolving it will happen in one of the next versions)
-    fn init(&self) -> (PathBuf, PathBuf, HashMap<String, Vec<String>>, &str);
+    fn init(&self) -> (PathBuf, PathBuf, HashMap<String, String>, &str);
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
@@ -171,8 +172,19 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         let line = String::from_utf8_lossy(vec_buf).into_owned();
         prev = None;
         let expand = line.ends_with('\t');
+        // silently expand aliases
+        let mut cmd_with_aliases = line.trim().to_string();
+        for _ in 0..20 {
+            // kind of preventing looping
+            match expand_alias(&cmd_with_aliases, &aliases) {
+                Cow::Borrowed(_borrowed) => {
+                    break;
+                }
+                Cow::Owned(owned) => cmd_with_aliases = owned,
+            }
+        }
         let (mut cmd, piped, in_file, out_file, appnd, bkgr) =
-            parse_cmd(&line.trim(), &child_env, &cwd);
+            parse_cmd(&cmd_with_aliases, &child_env, &cwd);
         if cmd.is_empty() {
             continue;
         };
@@ -225,10 +237,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             continue;
         }
         send!("{line}"); // \n is coming as part of command
-        if piped.is_empty() {
-            // think on condition to do that more
-            cmd = expand_alias(&aliases, cmd, &child_env);
-        }
         #[cfg(target_os = "windows")]
         let cmd_ = cmd[0].to_ascii_lowercase();
         #[cfg(not(target_os = "windows"))]
@@ -560,7 +568,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
             "alias" => {
                 if cmd.len() == 1 {
                     for (alias, extension) in &aliases {
-                        send!("alias {alias}='{}'\n", extension.join(" "));
+                        send!("alias {alias}='{}'\n", extension);
                     }
                 } else if cmd.len() == 2
                     && let Some((name, value)) = cmd.get(1).unwrap().split_once('=')
@@ -641,8 +649,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 } else {
                     // piping work
                     let mut res = vec![];
-                    for mut pipe_cmd in piped {
-                        pipe_cmd = expand_alias(&aliases, pipe_cmd, &child_env);
+                    for pipe_cmd in piped {
                         match call_process_piped(&pipe_cmd, &cwd, &res, &child_env) {
                             Ok(next_res) => {
                                 res = next_res;
@@ -657,7 +664,6 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         }
                         //eprintln!("Called {pipe_cmd:?} returned {}", String::from_utf8_lossy(&res));
                     }
-                    cmd = expand_alias(&aliases, cmd, &child_env);
                     //eprintln!("before call {cmd:?}");
                     match call_process_piped(&cmd, &cwd, &res, &child_env) {
                         Ok(res) => {
@@ -1377,35 +1383,192 @@ fn expand_wildcard_in_arg(cwd: &Path, arg: String, args: &mut Vec<String>) {
     }
 }
 
-fn expand_alias(
-    aliases: &HashMap<String, Vec<String>>,
-    mut cmd: Vec<String>,
-    child_env: &HashMap<String, String>,
-) -> Vec<String> {
-    #[cfg(not(target_os = "windows"))]
-    let alias = &cmd[0];
-    #[cfg(target_os = "windows")]
-    let alias = &cmd[0].to_ascii_lowercase();
-    match aliases.get(alias) {
-        Some(expand) => {
-            let mut interpolated: Vec<String> = Vec::with_capacity(expand.len());
-            let mut expand = expand.iter();
-            if let Some(element) = expand.next() {
-                interpolated.push(element.to_string());
-                for element in expand {
-                    interpolated.push(interpolate_env(element, child_env))
+fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow<'a, str> {
+    let mut state = Default::default();
+    let mut alias = String::with_capacity(256);
+    let mut alias_susp = true;
+    let mut i_start = 0;
+    for (i, c) in cmd_line.char_indices() {
+        match c {
+            ' ' | '\t' | '\r' | '\n' | '\u{00a0}' | '|' | '(' | ')' | '<' | '>' | ';' | '&'
+            | '\u{000C}' | '\u{000B}' => {
+                // \f \v
+                match state {
+                    CmdState::StartArg => match c {
+                        '|' | '<' | '>' | '&' => {
+                            if alias_susp {
+                                if !alias.is_empty()
+                                    && let Some(alias_val) = aliases.get(&alias)
+                                {
+                                    let mut cmd_with_alias = cmd_line.to_string();
+                                    cmd_with_alias.replace_range(i_start..i, alias_val); // .splice(i_start..i, &alias_val);
+                                    return Cow::Owned(cmd_with_alias);
+                                }
+                            } else {
+                                alias_susp = true
+                            }
+                            alias.clear();
+                        }
+                        _ => (),
+                    },
+                    CmdState::InArg => {
+                        state = CmdState::StartArg;
+                        if alias_susp {
+                            if !alias.is_empty()
+                                && let Some(alias_val) = aliases.get(&alias)
+                            {
+                                let mut cmd_with_alias = cmd_line.to_string();
+                                cmd_with_alias.replace_range(i_start..i, alias_val);
+                                return Cow::Owned(cmd_with_alias);
+                            }
+
+                            alias_susp = false
+                        }
+                        alias.clear();
+                    }
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
+                        // no action
+                    }
+                    CmdState::QuotedArg => {
+                        // no action
+                    }
+                    CmdState::DblQuotedArg => {
+                        // no action
+                    }
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
+                        // no action
+                    }
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        // no action
+                    }
                 }
             }
-            cmd.splice(0..1, interpolated);
-            cmd
-        }
-        _ => {
-            if cmd[0].starts_with("\\") {
-                cmd[0] = cmd[0][1..].to_owned();
+            '"' => {
+                match state {
+                    CmdState::StartArg => {
+                        state = CmdState::DblQuotedArg;
+                        //arg_segment.clear()
+                    }
+                    CmdState::InArg => {
+                        state = CmdState::DblQuotedArg;
+                        // no action
+                    }
+                    CmdState::QuotedArg => (), // no action
+                    CmdState::Esc => {
+                        // no action
+                        state = CmdState::InArg;
+                    }
+                    CmdState::QEsc => {
+                        // no action
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        // no action
+                    }
+                    CmdState::DblQuotedArg => {
+                        // no action
+                        state = CmdState::InArg;
+                    }
+                }
             }
-            cmd
+            '\'' => {
+                match state {
+                    CmdState::StartArg => {
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::InArg => {
+                        // no action
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::QuotedArg => state = CmdState::InArg,
+                    CmdState::Esc => {
+                        // no action
+                        state = CmdState::InArg;
+                    }
+                    CmdState::QEsc => {
+                        // no action
+                        state = CmdState::QuotedArg;
+                    }
+                    CmdState::DEsc => {
+                        // no action
+                        state = CmdState::DblQuotedArg;
+                    }
+                    CmdState::DblQuotedArg => (), // no action
+                }
+            }
+            '\\' => {
+                match state {
+                    CmdState::StartArg | CmdState::InArg => {
+                        state = CmdState::Esc;
+                    }
+                    CmdState::QuotedArg => {
+                        state = CmdState::QEsc;
+                    }
+                    CmdState::DblQuotedArg => {
+                        state = CmdState::DEsc;
+                    }
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
+                        // no action
+                    }
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
+                        // no action
+                    }
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        // no action
+                    }
+                }
+            }
+            other => {
+                match state {
+                    CmdState::StartArg | CmdState::InArg => {
+                        state = CmdState::InArg;
+                        if alias.is_empty() {
+                            i_start = i
+                        }
+                        alias.push(other);
+                    }
+                    CmdState::QuotedArg => {
+                        // no action
+                    }
+                    CmdState::DblQuotedArg => (), // no action
+                    CmdState::Esc => {
+                        state = CmdState::InArg;
+                        // no action
+                    }
+                    CmdState::QEsc => {
+                        state = CmdState::QuotedArg;
+                        // no action
+                    }
+                    CmdState::DEsc => {
+                        state = CmdState::DblQuotedArg;
+                        // no action
+                    }
+                }
+            }
         }
     }
+    match state {
+        CmdState::InArg => {
+            if alias_susp
+                && !alias.is_empty()
+                && let Some(alias_val) = aliases.get(&alias)
+            {
+                let mut cmd_with_alias = cmd_line.to_string();
+                cmd_with_alias.replace_range(i_start.., alias_val);
+                return Cow::Owned(cmd_with_alias);
+            }
+        }
+        CmdState::StartArg => (),
+        _ => todo!(), // it shouldn't happen ever
+    }
+    Cow::Borrowed(cmd_line)
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -2234,4 +2397,31 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
         }
         _ => Ok(None),
     }
+}
+
+#[cfg(test)]
+fn main() {
+    let aliases = HashMap::from([
+        (
+            "tree".to_string(),
+            "find . -print | sed -e 's;[^/]*/;|____;g;s;____|; |;g'".to_string(),
+        ),
+        ("tail".to_string(), "simtail -n 26".to_string()),
+        ("dir".to_string(), "ls -color".to_string()),
+        ("lsd".to_string(), "dir -color".to_string()),
+    ]);
+    let mut cmd = "tree|tail | dir".to_string();
+    for _ in 0..20 {
+        match expand_alias(&cmd, &aliases) {
+            Cow::Borrowed(borrowed) => {
+                println!("Borrowed: {}", borrowed);
+                break;
+            }
+            Cow::Owned(owned) => {
+                println!("Owned: {}", owned);
+                cmd = owned
+            }
+        }
+    }
+    println!("final cmd: {cmd}")
 }

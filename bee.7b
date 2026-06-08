@@ -4,13 +4,13 @@ crate main=lib
 dep_crates=[]
 comp opts=[]
 crate_src=src${~/~}rust
-test file=test
+test file=src${~/~}rust${~/~}terminal
 common =..${~/~}simscript${~/~}comm-crate.7b:file
 common_test =..${~/~}simscript${~/~}comm-test.7b:file
 crate_dir=..${~/~}crates
 doc_dir=..${~/~}docs
 
-version=1.12b035
+version=1.13b038
 set_env(VERSION,version)
 mode=mode:prop
 if {
@@ -21,3 +21,4 @@ if {
 }
 
 include(common);
+include(common_test);
