@@ -581,6 +581,21 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
                 send!("\u{000C}");
             }
+            "unalias" => {
+                if cmd.len() == 2 {
+                    let arg = cmd.get(1).unwrap();
+                    if arg == "-a" {
+                        aliases.clear()
+                    } else {
+                        if aliases.remove(arg).is_none() {
+                            send!("There is no alias {arg}");
+                        }
+                    }
+                } else {
+                    send!("Invalid number of arguments of the unalias");
+                }
+                send!("\u{000C}");
+            }
             "ver!" => {
                 send!("{VERSION}\u{000C}"); // path
             }
