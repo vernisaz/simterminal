@@ -1421,8 +1421,8 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
                                 cmd_with_alias.replace_range(i_start..i, alias_val);
                                 return Cow::Owned(cmd_with_alias);
                             }
-
-                            alias_susp = false
+                        } else {
+                            alias_susp = true
                         }
                         alias.clear();
                     }
