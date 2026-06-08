@@ -175,7 +175,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         // silently expand aliases
         let mut cmd_with_aliases = line.trim().to_string();
         for _ in 0..20 {
-            // kind of preventing looping
+            // kind of preventing infinite looping in cases mutual referring aliases
             match expand_alias(&cmd_with_aliases, &aliases) {
                 Cow::Borrowed(_borrowed) => {
                     break;
@@ -561,7 +561,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         }
                     }
                     _ => {
-                        send!("Invalid number of parameters");
+                        send!("Invalid number of parameters of the set");
                     }
                 }
                 send!("\u{000C}");
