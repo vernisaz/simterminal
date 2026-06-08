@@ -4,7 +4,7 @@
 Provide a terminal functionality in a Web or a standalone application.
 
 ## How to use
-Your web server must support the websocket CGI extention endpoints. For example, [SimHTTP](https://github.com/vernisaz/simhttp) supports WS-CGI.
+A web server must support the websocket CGI extention endpoints. For example, [SimHTTP](https://github.com/vernisaz/simhttp) supports WS-CGI.
 
 1. Implement trait `Terminal`. Only `init` is required. For example:
 ```Rust
@@ -12,7 +12,7 @@ struct Commander ;
 const VERSION: &str = "1.1.1";
 
 impl Terminal for Commander {
-    fn init(&self) -> (PathBuf, PathBuf, HashMap<String,Vec<String>>,&str) {
+    fn init(&self) -> (PathBuf, PathBuf, HashMap<String,String>,&str) {
         let web = simweb::WebData::new();
         let os_drive =
             if "windows" == consts::OS {
@@ -37,7 +37,7 @@ fn main() {
     let _ = Commander.main_loop();
 }
 ```
-3. Client part should include *terminal.js*, and then use a code, like:
+3. A client part should include *terminal.js*, and then use a code, like:
 ```JavaScript
 const WIN_SERVER = true
 const WS_TERM_URL_BASE = './term'
@@ -75,7 +75,7 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 #terminal {
     color: #0e131f;
     font-family: monospace; 
-    padding-top:2px;
+    padding-top:0.5em;
     padding-bottom: 1em;
     width: fit-content;
 }

@@ -45,6 +45,8 @@ const TERMINAL_NAME: &str = "sim/terminal";
 
 const MAX_BLOCK_LEN: usize = 4096;
 
+const MAX_ALIAS_EXPANSION: u16 = 255;
+
 const DIR_COLOR: u8 = 41;
 
 pub trait Terminal {
@@ -54,8 +56,6 @@ pub trait Terminal {
     /// - command aliases
     /// - version
     ///
-    /// since an alias may include not only command substitution, but also pipe of several command,
-    /// the current solution has a serious design flaw (resolving it will happen in one of the next versions)
     fn init(&self) -> (PathBuf, PathBuf, HashMap<String, String>, &str);
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
@@ -65,7 +65,7 @@ pub trait Terminal {
         let ver = version.color_num(66).to_string();
         format!("OS terminal {ver}")
     }
-    fn main_loop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn main_loop(&mut self) -> Result<(), Box<dyn Error>> {
         term_loop(self)
     }
 }
@@ -174,7 +174,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         let expand = line.ends_with('\t');
         // silently expand aliases
         let mut cmd_with_aliases = line.trim().to_string();
-        for _ in 0..256 {
+        for _ in 0..MAX_ALIAS_EXPANSION {
             // kind of preventing infinite looping in cases mutual referring aliases
             match expand_alias(&cmd_with_aliases, &aliases) {
                 Cow::Borrowed(_borrowed) => {
