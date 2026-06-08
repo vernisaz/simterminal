@@ -324,7 +324,18 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
                 let mut res: String;
                 if !names_only {
-                    res = format!("    Directory: {}\n\n", dir.display());
+                    let mut dir2;
+                    res = format!(
+                        "    Directory: {}\n\n",
+                        if dir.display().to_string().find('*').is_some() {
+                            dir2 = dir.clone();
+                            dir2.pop();
+                            &dir2
+                        } else {
+                            &dir
+                        }
+                        .display()
+                    );
                     res.push_str("Mode                 LastWriteTime         Length Name\n");
                     res.push_str("----                 -------------         ------ ----\n");
                 } else {
@@ -1425,14 +1436,13 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
                     },
                     CmdState::InArg => {
                         state = CmdState::StartArg;
-                        if alias_susp {
-                            if !alias.is_empty()
-                                && let Some(alias_val) = aliases.get(&alias)
-                            {
-                                let mut cmd_with_alias = cmd_line.to_string();
-                                cmd_with_alias.replace_range(i_start..i, alias_val);
-                                return Cow::Owned(cmd_with_alias);
-                            }
+                        if alias_susp
+                            && !alias.is_empty()
+                            && let Some(alias_val) = aliases.get(&alias)
+                        {
+                            let mut cmd_with_alias = cmd_line.to_string();
+                            cmd_with_alias.replace_range(i_start..i, alias_val);
+                            return Cow::Owned(cmd_with_alias);
                         }
                         alias_susp = c == '|';
                         alias.clear();
@@ -1565,18 +1575,14 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
             }
         }
     }
-    match state {
-        CmdState::InArg => {
-            if alias_susp
-                && !alias.is_empty()
-                && let Some(alias_val) = aliases.get(&alias)
-            {
-                let mut cmd_with_alias = cmd_line.to_string();
-                cmd_with_alias.replace_range(i_start.., alias_val);
-                return Cow::Owned(cmd_with_alias);
-            }
-        }
-        _ => (),
+    if state == CmdState::InArg
+        && alias_susp
+        && !alias.is_empty()
+        && let Some(alias_val) = aliases.get(&alias)
+    {
+        let mut cmd_with_alias = cmd_line.to_string();
+        cmd_with_alias.replace_range(i_start.., alias_val);
+        return Cow::Owned(cmd_with_alias);
     }
     Cow::Borrowed(cmd_line)
 }
