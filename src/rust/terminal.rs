@@ -1082,6 +1082,7 @@ fn parse_cmd(
     cwd: &Path,
 ) -> (Vec<String>, Vec<Vec<String>>, String, String, bool, bool) {
     // TODO add < for first group and > for last group which can be be the same
+    // TODO command sequences can be separated by &&, this method has to be improved to recognize that
     let mut pipe_res = vec![];
     let mut res = vec![];
     let mut input_file = String::new();
