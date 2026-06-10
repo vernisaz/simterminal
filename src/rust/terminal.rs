@@ -1394,7 +1394,7 @@ fn expand_wildcard_in_arg(cwd: &Path, arg: String, args: &mut Vec<String>) {
         } else {
             comp_path.pop();
             for arg in data.src_wild {
-                comp_path.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                comp_path.push(arg);
                 args.push(comp_path.display().to_string());
                 if cfg!(windows) {
                     // only one argument in Windows
@@ -2257,14 +2257,12 @@ impl DeferData {
                     && let Some(dst_after) = &self.dst_after
                 {
                     format! {"{dst_before}{}{dst_after}", &name[self.src_before.len()..name.len() - self.src_after.len()]}
+                } else if dst.is_dir() {
+                    String::new()
                 } else {
-                    if dst.is_dir() {
-                        String::new()
-                    } else {
-                        let name_to = dst.file_name().unwrap().display().to_string();
-                        dst.pop();
-                        name_to
-                    }
+                    let name_to = dst.file_name().unwrap().display().to_string();
+                    dst.pop();
+                    name_to
                 }
             } else {
                 String::new()
@@ -2419,7 +2417,7 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
             let data = DeferData::from(cwd, &dir);
             let mut res = String::new();
             for arg in data.src_wild {
-                dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                dir.push(arg);
                 if let Some(file_name) = dir.as_path().file_name() {
                     res.push_str(&file_name.display().to_string());
                     res.push('\n');
