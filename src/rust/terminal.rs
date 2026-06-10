@@ -2400,8 +2400,7 @@ fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
             let mut data = DeferData::from(cwd, &PathBuf::from(&cmd[1]));
             let mut contents = String::with_capacity(4 * 1024);
             for arg in data.src_wild {
-                data.src
-                    .push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                data.src.push(arg);
                 contents.push_str(&fs::read_to_string(&data.src)?);
                 data.src.pop();
             }
