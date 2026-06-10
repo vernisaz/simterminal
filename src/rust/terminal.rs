@@ -363,6 +363,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                         } else if path.is_dir() {
                             file_name = file_name.color_num(27)
                         } else if let Some(ext) = path.extension() {
+                            let ext = ext.to_ascii_lowercase();
                             let ext = ext.to_str().unwrap();
                             match ext {
                                 "exe" | "com" | "bat" | "msi" => {
@@ -2224,17 +2225,18 @@ impl DeferData {
         } else {
             to.to_path_buf()
         };
-        let to_dir = if to.is_dir() {
+        let mut to_dir = if to.is_dir() {
             to_name = String::new();
-            to
+            to.clone()
         } else {
             to_name = to.file_name().unwrap().to_str().unwrap().to_string();
             to.parent().unwrap_or(&PathBuf::from("")).to_path_buf() // ??? the code needs review in case of no parent
         };
-        //
+        // eprintln!("to-> {to:?}");
         let (to_before, to_after) = match split_at_star(&to_name) {
             None => {
                 // no wild card
+                to_dir.push(to_name);
                 (None, None)
             }
             Some((before, after)) => (Some(before.to_string()), Some(after.to_string())),
@@ -2250,11 +2252,20 @@ impl DeferData {
         let mut succ_count = 0;
         let file = &mut self.src;
         for name in &self.src_wild {
-            let name_to = if self.dst.is_some()
-                && let Some(dst_before) = &self.dst_before
-                && let Some(dst_after) = &self.dst_after
-            {
-                format! {"{dst_before}{}{dst_after}", &name[self.src_before.len()..name.len() - self.src_after.len()]}
+            let name_to = if let Some(dst) = &mut self.dst {
+                if let Some(dst_before) = &self.dst_before
+                    && let Some(dst_after) = &self.dst_after
+                {
+                    format! {"{dst_before}{}{dst_after}", &name[self.src_before.len()..name.len() - self.src_after.len()]}
+                } else {
+                    if dst.is_dir() {
+                        String::new()
+                    } else {
+                        let name_to = dst.file_name().unwrap().display().to_string();
+                        dst.pop();
+                        name_to
+                    }
+                }
             } else {
                 String::new()
             };
@@ -2282,6 +2293,7 @@ impl DeferData {
                         dest.push(name) // 
                     }
                     if file.is_file() {
+                        // eprintln!("{file:?}, &{dest:?}");
                         if fs::copy(&file, &dest).is_ok() {
                             succ_count += 1
                         };

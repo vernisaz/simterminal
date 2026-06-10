@@ -20,5 +20,5 @@ if {
 	}
 }
 
-include(common);
 include(common_test);
+include(common);
