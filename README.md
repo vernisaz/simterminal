@@ -1,7 +1,7 @@
 # Simple Terminal
 
 ## Purpose
-Provide a terminal functionality in a Web or a standalone application.
+Provide a terminal functionality for a web or a standalone application.
 
 ## How to use
 A web server must support the websocket CGI extention endpoints. For example, [SimHTTP](https://github.com/vernisaz/simhttp) supports WS-CGI.
@@ -70,6 +70,16 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
     // ... some other actions
 }
 ```
+
+The dynamically added the terminal HTML can be replaced by a static equivalent:
+```html
+<section id="terminal-container">
+    <div id="terminal">
+        <code contenteditable="true" id="commandarea" onkeydown="sendCommand(this)" autofocus style="min-width:1em">&nbsp;</code>
+    </div>
+</section>
+```
+
 4. Add CSS
 ```CSS
 #terminal {
@@ -109,14 +119,7 @@ function closeTerminal() { // optionally, add it for 'exit' like command process
 	0% { opacity:1 } 75% { opacity:1 } 76% { opacity:0 } 100% { opacity:0 }
 }
 ```
-HTML can be provided statically as,
-```html
-<section id="terminal-container">
-    <div id="terminal">
-        <code contenteditable="true" id="commandarea" onkeydown="sendCommand(this)" autofocus style="min-width:1em">&nbsp;</code>
-    </div>
-</section>
-```
+
 5. The following JSON code snippet has to be added in [SimHTTP](https://github.com/vernisaz/simhttp) [configuration](https://github.com/vernisaz/simhttp/blob/master/env.conf):
 ```JSON
 {"path":"/cmd/js",
@@ -132,6 +135,7 @@ HTML can be provided statically as,
 `terminal.js` should be stored in _./html/js_ directory.
 
 6. Customize terminal output by adding clickable links
+
 Sometimes a terminal output can contain URLs and other clickable elements as references to a source code with line numbers. Such
 elements can be wrapped in clickable links in the terminal output. Define function `extendURL` with a string parameter
 returning a string with embedded URLs (if applied), for example:
@@ -178,3 +182,5 @@ The three dependency crates are:
 - [Simple commander](https://github.com/vernisaz/simcom) file manager
 - [Rust Development Studio](https://github.com/vernisaz/rust_dev_studio) multipurpose web IDE
 
+## Known problem
+The terminal can't be dismissed if it starts an app which continues running. Use `kill` for the terminal to terminate it.
