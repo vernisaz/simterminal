@@ -385,9 +385,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     let data = DeferData::from(&cwd, &dir);
                     for arg in data.src_wild {
                         dir.pop();
-                        dir.push(format! {"{}{arg}{}",&data.src_before, &data.src_after});
+                        dir.push(arg);
                         if !names_only {
-                            file_details(&dir.metadata()?, &mut res);
+                            file_details(&dir.metadata()?, &mut res); // possible exception
                         }
                         if let Some(file_name) = dir.file_name() {
                             res.push_str(&file_name.display().to_string());
@@ -2165,6 +2165,7 @@ impl DeferData {
         } else {
             cwd.join(&from_dir)
         };
+        //eprintln!("{from:?} - {from_name:?} - {dir:?}");
         let (src_wild, src_before, src_after) = match split_at_star(&from_name) {
             None => (vec![from_name], String::new(), String::new()),
             #[allow(unused_mut)]
@@ -2186,15 +2187,17 @@ impl DeferData {
                                     {
                                         let su = s.to_ascii_uppercase();
                                         if su.starts_with(&before) && su.ends_with(&after) {
-                                            Some(s[before.len()..s.len() - after.len()].to_string())
+                                            Some(s) // [before.len()..s.len() - after.len()]
                                         } else {
                                             None
                                         }
                                     }
                                     #[cfg(not(target_os = "windows"))]
-                                    s.strip_prefix(&before)
-                                        .and_then(|name| name.strip_suffix(&after))
-                                        .map(str::to_string)
+                                    if s.starts_with(&before) && s.ends_with(&after) {
+                                        Some(s)
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
@@ -2253,12 +2256,11 @@ impl DeferData {
                 && let Some(dst_before) = &self.dst_before
                 && let Some(dst_after) = &self.dst_after
             {
-                format! {"{dst_before}{name}{dst_after}"}
+                format! {"{dst_before}{}{dst_after}", &name[self.src_before.len()..name.len() - self.src_after.len()]}
             } else {
                 String::new()
             };
-            let name = format! {"{}{name}{}",&self.src_before, &self.src_after};
-            //eprintln!{"{:?} to {:?} {name} to {name_to:?}", self.src, self.dst}
+            //eprintln!{"{:?} to {:?} {name} to {name_to:?}", &file, self.dst}
             file.push(&name);
             match op {
                 Op::TYP => {
