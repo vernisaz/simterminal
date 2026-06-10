@@ -597,10 +597,8 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     let arg = cmd.get(1).unwrap();
                     if arg == "-a" {
                         aliases.clear()
-                    } else {
-                        if aliases.remove(arg).is_none() {
-                            send!("There is no alias {arg}");
-                        }
+                    } else if aliases.remove(arg).is_none() {
+                        send!("There is no alias {arg}");
                     }
                 } else {
                     send!("Invalid number of arguments of the unalias");
@@ -2261,7 +2259,7 @@ impl DeferData {
                 String::new()
             };
             //eprintln!{"{:?} to {:?} {name} to {name_to:?}", &file, self.dst}
-            file.push(&name);
+            file.push(name);
             match op {
                 Op::TYP => {
                     //eprintln!{"typing: {file:?}"}
