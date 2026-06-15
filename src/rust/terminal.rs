@@ -788,6 +788,7 @@ fn call_process(
                             false
                         };
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
+                        // TODO last UTF8 can be incomplete in the buffer , then not send it and wait for continue
                         match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
