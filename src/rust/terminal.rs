@@ -1583,9 +1583,10 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
     {
         let mut cmd_with_alias = cmd_line.to_string();
         cmd_with_alias.replace_range(i_start.., alias_val);
-        return Cow::Owned(cmd_with_alias);
+        Cow::Owned(cmd_with_alias)
+    } else {
+        Cow::Borrowed(cmd_line)
     }
-    Cow::Borrowed(cmd_line)
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
