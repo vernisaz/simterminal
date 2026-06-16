@@ -788,7 +788,6 @@ fn call_process(
                             false
                         };
                         //let line = String::from_utf8_lossy(&buffer[0..len]);
-                        // TODO last UTF8 can be incomplete in the buffer , then not send it and wait for continue
                         match stdin_child.write_all(&buffer[start..len]) {
                             Ok(()) => {
                                 stdin_child.flush().unwrap(); // can be an error?
@@ -813,11 +812,37 @@ fn call_process(
 
                 //s.spawn(|| {
                 let mut buffer = [0_u8; MAX_BLOCK_LEN];
-                while let Ok(l) = stdout.read(&mut buffer)
+                let mut utf8 = [0u8; 4];
+                let mut more = 0usize;
+                let mut tot = 0usize;
+                while let Ok(mut l) = stdout.read(&mut buffer)
                     && l > 0
                 {
-                    let data = buffer[..l].to_vec();
-                    let string = String::from_utf8_lossy(&data);
+                    // TODO check if l < more (unlikely but possible)
+                    // fill incomplete last utf8
+                    let mut start = 0usize;
+                    if more > 0 {
+                        utf8[tot - more..tot].copy_from_slice(&buffer[start..start + more]);
+                        start += more;
+                        if let Ok(string) = str::from_utf8(&utf8[0..tot]) {
+                            send! {"{}", string};
+                        } else {
+                            send! {"�",};
+                        }
+                    }
+                    // check if the buffer has incomplete UTF8
+                    let (incomplete, incomp_tot) = utf8_incomplete_suffix_len(&buffer[start..l]);
+                    if incomplete > 0 && incomp_tot > 0 {
+                        utf8[..incomp_tot - incomplete]
+                            .copy_from_slice(&buffer[l + incomplete - incomp_tot..]);
+                        more = incomplete;
+                        tot = incomp_tot;
+                        l -= incomp_tot - incomplete;
+                    } else {
+                        more = 0;
+                        tot = 0;
+                    }
+                    let string = String::from_utf8_lossy(&buffer[start..l]);
                     send! {"{}", string};
                 }
                 //});
@@ -835,6 +860,38 @@ fn call_process(
         }
     }
     res
+}
+pub fn utf8_incomplete_suffix_len(buf: &[u8]) -> (usize, usize) {
+    let mut i = buf.len();
+
+    // Step 1: walk backwards over continuation bytes (10xxxxxx)
+    while i > 0 && (buf[i - 1] & 0b1100_0000) == 0b1000_0000 {
+        i -= 1;
+    }
+
+    if i == 0 {
+        // All bytes are continuation bytes → definitely incomplete
+        return (buf.len(), 0);
+    }
+
+    let first = buf[i - 1];
+
+    // Step 2: determine expected length from leading byte
+    let expected = match first {
+        0x00..=0x7F => 1,
+        0xC2..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF4 => 4,
+        _ => return (0, 0), // invalid leading byte → treat as complete
+    };
+
+    let actual = buf.len() - (i - 1);
+
+    if actual < expected {
+        (expected - actual, expected)
+    } else {
+        (0, expected)
+    }
 }
 
 fn call_process_out_file(
