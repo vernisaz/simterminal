@@ -172,9 +172,9 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         let line = String::from_utf8_lossy(vec_buf).into_owned();
         prev = None;
         let expand = line.ends_with('\t');
-        // silently expand aliases
+        // silently expand aliases if no expand
         let mut cmd_with_aliases = line.trim().to_string();
-        for _ in 0..MAX_ALIAS_EXPANSION {
+        for _ in 0..if expand { 0 } else { MAX_ALIAS_EXPANSION } {
             // kind of preventing infinite looping in cases mutual referring aliases
             match expand_alias(&cmd_with_aliases, &aliases) {
                 Cow::Borrowed(_borrowed) => {
