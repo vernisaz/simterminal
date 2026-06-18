@@ -1959,26 +1959,30 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
 
 fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     let entered = unescape(arg);
-    let mut path = //PathBuf::from(&entered);
-        if entered.starts_with('~') { // '~, "~, \~ - no expansion
-            if let Some(env_value) = env::home_dir() {
-                let res = PathBuf::from(env_value.display().to_string());
-                if entered.len() > 1 {
-                    res.join(&entered[2..])
-                } else {
-                    res
-                }
+    let mut path = if entered.starts_with('~') {
+        // '~, "~, \~ - no expansion
+        if let Some(env_value) = env::home_dir() {
+            let res = PathBuf::from(env_value.display().to_string());
+            if entered.len() > 1 {
+                res.join(&entered[2..])
             } else {
-                PathBuf::from(&entered)
+                res
             }
         } else {
             PathBuf::from(&entered)
-        };
-    //eprintln!("entered: {path:?} {cwd:?}");
+        }
+    } else {
+        PathBuf::from(&entered)
+    };
+    //eprintln!("entered: {path:?} cwd: {cwd:?} name {:?} (ends {})", path.file_name(), path.ends_with("."));
     let part_name = if let Some(name) = path.file_name() {
         name.to_str().unwrap().to_string()
     } else {
-        String::new()
+        if path.ends_with(".") {
+            String::from(".")
+        } else {
+            String::new()
+        }
     };
     let dir;
     if path.pop() {
@@ -1996,7 +2000,7 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     } else {
         dir = cwd.to_path_buf();
     }
-    //eprintln!("entered: {cwd:?} {dir:?} {part_name:?}");
+    //eprintln!("procesed: {cwd:?} {dir:?} {part_name:?}");
     let files: Vec<String> = match dir.read_dir() {
         Ok(read_dir) => read_dir
             .filter_map(|p| {
@@ -2004,6 +2008,7 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
                     let ep = p.path();
                     let binding = p.file_name();
                     let n = binding.to_string_lossy();
+                    //eprintln!("checking : {n} and part {part_name}");
                     if (!exe || ep.is_executable()) && platform_starts_with(&n, &part_name) {
                         let n = n.to_string();
                         if ep.is_dir() {
