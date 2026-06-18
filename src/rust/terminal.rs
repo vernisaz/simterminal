@@ -1974,18 +1974,31 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     } else {
         PathBuf::from(&entered)
     };
-    //eprintln!("entered: {path:?} cwd: {cwd:?} name {:?} (ends {})", path.file_name(), path.ends_with("."));
-    let part_name = if let Some(name) = path.file_name() {
+    let path_os_str = path.as_os_str();
+    //eprintln!("entered: {path:?} cwd: {cwd:?} name {:?} (ends {}) osStr {}", path.file_name(), path.ends_with("."), path_os_str.as_encoded_bytes().ends_with(b"\\."));
+    let part_name = if !path_os_str.as_encoded_bytes().ends_with(b"/.")
+        && !(cfg!(windows) && path_os_str.as_encoded_bytes().ends_with(b"\\."))
+        && let Some(name) = path.file_name()
+    {
         name.to_str().unwrap().to_string()
     } else {
-        if path.ends_with(".") {
+        if path.ends_with(".")
+            || path_os_str.as_encoded_bytes().ends_with(b"/.")
+            || cfg!(windows) && path_os_str.as_encoded_bytes().ends_with(b"\\.")
+        {
             String::from(".")
+        } else if path.ends_with("..") {
+            String::from("..")
         } else {
             String::new()
         }
     };
+    //eprintln!("part : {part_name}");
     let dir;
-    if path.pop() {
+    if !path_os_str.as_encoded_bytes().ends_with(b"/.")
+        && !path_os_str.as_encoded_bytes().ends_with(b"\\.")
+        && path.pop()
+    {
         if path.is_relative() {
             //eprintln!("popped path {:?}", &path);
             if path.as_os_str().is_empty() {
