@@ -1976,8 +1976,8 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     };
     let path_os_str = path.as_os_str();
     //eprintln!("entered: {path:?} cwd: {cwd:?} name {:?} (ends {}) osStr {}", path.file_name(), path.ends_with("."), path_os_str.as_encoded_bytes().ends_with(b"\\."));
-    let part_name = if !path_os_str.as_encoded_bytes().ends_with(b"/.")
-        && !(cfg!(windows) && path_os_str.as_encoded_bytes().ends_with(b"\\."))
+    let part_name = if !(path_os_str.as_encoded_bytes().ends_with(b"/.")
+        || cfg!(windows) && path_os_str.as_encoded_bytes().ends_with(b"\\."))
         && let Some(name) = path.file_name()
     {
         name.to_str().unwrap().to_string()
