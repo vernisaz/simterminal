@@ -188,7 +188,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         if cmd.is_empty() {
             continue;
         };
-        eprintln!("pipe {piped:?} - {in_file} < {cmd:?} > {out_file}");
+        //eprintln!("pipe {piped:?} - {in_file} < {cmd:?} > {out_file}");
         if expand {
             let ext = esc_string_blanks(extend_name(
                 if out_file.is_empty() {
