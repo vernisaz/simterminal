@@ -188,7 +188,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
         if cmd.is_empty() {
             continue;
         };
-        //eprintln!("pipe {piped:?} - {in_file} < {cmd:?} > {out_file}");
+        eprintln!("pipe {piped:?} - {in_file} < {cmd:?} > {out_file}");
         if expand {
             let ext = esc_string_blanks(extend_name(
                 if out_file.is_empty() {
@@ -1921,13 +1921,18 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push(c);
                     state = EnvExpState::NoInterpol
                 }
-                EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
+                EnvExpState::InEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
                     curr_env.clear();
+                    res.push(c);
+                    state = EnvExpState::InArg
+                }
+                EnvExpState::ExpEnvName => {
+                    res.push('$');
                     res.push(c);
                     state = EnvExpState::InArg
                 }
