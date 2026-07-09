@@ -1703,13 +1703,17 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push('\\');
                     state = EnvExpState::InArg
                 }
-                EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
+                EnvExpState::InEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
                         res.push_str(TERMINAL_NAME)
                     }
                     curr_env.clear();
+                    state = EnvExpState::Esc
+                }
+                EnvExpState::ExpEnvName => {
+                    res.push('$');
                     state = EnvExpState::Esc
                 }
                 EnvExpState::InBracketEnvName => curr_env.push(c),
@@ -1823,6 +1827,7 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                 }
                 EnvExpState::ExpEnvName => {
                     state = EnvExpState::InArg;
+                    res.push('$');
                     res.push(c)
                 }
                 EnvExpState::Esc => {
@@ -1855,24 +1860,6 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::NoInterpol
                 }
             },
-            /*'\'' => {
-                // no interpolation inside ''
-                match state {
-                    EnvExpState::InArg | EnvExpState::TildeCan => state = EnvExpState::NoInterpol,
-                    EnvExpState::NoInterpol => state = EnvExpState::InArg,
-                    EnvExpState::EscNoInterpol => {
-                        res.push(c);
-                        state = EnvExpState::NoInterpol
-                    }
-                    EnvExpState::Esc => {
-                        res.push(c);
-                        state = EnvExpState::InArg
-                    }
-                    EnvExpState::InBracketEnvName
-                    | EnvExpState::InEnvName
-                    | EnvExpState::ExpEnvName => (), // generally error
-                }
-            }*/
             '=' | ':' => match state {
                 EnvExpState::NoInterpol => res.push(c),
                 EnvExpState::InArg => {
@@ -1893,7 +1880,7 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push(c);
                     state = EnvExpState::NoInterpol
                 }
-                EnvExpState::InEnvName | EnvExpState::ExpEnvName => {
+                EnvExpState::InEnvName => {
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -1902,6 +1889,11 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     curr_env.clear();
                     res.push(c);
                     state = EnvExpState::InArg
+                }
+                EnvExpState::ExpEnvName => {
+                    state = EnvExpState::InArg;
+                    res.push('$');
+                    res.push(c)
                 }
                 EnvExpState::InBracketEnvName => curr_env.push(c),
             },
@@ -1986,17 +1978,15 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
         && let Some(name) = path.file_name()
     {
         name.to_str().unwrap().to_string()
+    } else if path.ends_with(".")
+        || path_os_str.as_encoded_bytes().ends_with(b"/.")
+        || cfg!(windows) && path_os_str.as_encoded_bytes().ends_with(b"\\.")
+    {
+        String::from(".")
+    } else if path.ends_with("..") {
+        String::from("..")
     } else {
-        if path.ends_with(".")
-            || path_os_str.as_encoded_bytes().ends_with(b"/.")
-            || cfg!(windows) && path_os_str.as_encoded_bytes().ends_with(b"\\.")
-        {
-            String::from(".")
-        } else if path.ends_with("..") {
-            String::from("..")
-        } else {
-            String::new()
-        }
+        String::new()
     };
     //eprintln!("part : {part_name}");
     let dir;

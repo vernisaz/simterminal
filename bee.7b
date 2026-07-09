@@ -10,7 +10,7 @@ common_test =..${~/~}simscript${~/~}comm-test.7b:file
 crate_dir=..${~/~}crates
 doc_dir=..${~/~}docs
 
-version=1.14b040
+version=1.14b041
 set_env(VERSION,version)
 mode=mode:prop
 if {
