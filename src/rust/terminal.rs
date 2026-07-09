@@ -34,7 +34,7 @@ use std::{
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     thread,
-    time::UNIX_EPOCH,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use simcolor::Colorized;
@@ -1652,6 +1652,7 @@ enum EnvExpState {
     TildeCan,
     InArg,
     ExpEnvName,
+    ExpEnvNameWin,
     InBracketEnvName,
     InEnvName,
     Esc,
@@ -1695,6 +1696,65 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                         res.push(c);
                         state = EnvExpState::NoInterpol
                     }
+                    EnvExpState::ExpEnvNameWin => {
+                        curr_env.push(c);
+                        state = EnvExpState::InEnvName
+                    }
+                }
+            }
+            '%' if cfg!(windows) => {
+                match state {
+                    EnvExpState::InArg | EnvExpState::TildeCan => {
+                        state = EnvExpState::ExpEnvNameWin
+                    }
+                    EnvExpState::Esc => {
+                        state = EnvExpState::InArg;
+                        res.push(c)
+                    }
+                    EnvExpState::InEnvName => {
+                        if let Some(v) = child_env.get(&curr_env) {
+                            res.push_str(v)
+                        } else if curr_env == "time" {
+                            let now = SystemTime::now();
+                            if let Ok(now) = now.duration_since(UNIX_EPOCH) {
+                                let ms = now.as_millis() % 1000 / 10;
+                                let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
+                                let now = now.as_secs() as i64 + tz;
+                                let (_y, _m, _d, h, mm, s, _) =
+                                    simtime::get_datetime(1970, now as u64);
+                                res.push_str(&format!("{h:02}:{mm:02}:{s:02}.{ms:02}"))
+                            }
+                        } else if curr_env == "date" {
+                            let tz = (simtime::get_local_timezone_offset_dst().0 * 60) as i64;
+                            let now = SystemTime::now();
+                            if let Ok(now) = now.duration_since(UNIX_EPOCH) {
+                                let now = now.as_secs() as i64 + tz;
+                                let (y, m, d, _h, _mm, _s, dw) =
+                                    simtime::get_datetime(1970, now as u64);
+                                res.push_str(&format!(
+                                    "{} {m:02}/{d:02}/{y}",
+                                    simweb::HTTP_DAYS_OF_WEEK[dw as usize]
+                                ))
+                            }
+                        }
+                        curr_env.clear();
+                        state = EnvExpState::InArg
+                    }
+                    EnvExpState::ExpEnvName => {
+                        res.push('$');
+                        state = EnvExpState::ExpEnvNameWin
+                    }
+                    EnvExpState::ExpEnvNameWin => {
+                        res.push('%');
+                        //state = EnvExpState::ExpEnvNameWin
+                    }
+                    EnvExpState::InBracketEnvName => curr_env.push(c),
+                    EnvExpState::NoInterpol => res.push(c),
+                    EnvExpState::EscNoInterpol => {
+                        res.push('\\');
+                        res.push(c);
+                        state = EnvExpState::NoInterpol
+                    }
                 }
             }
             '\\' => match state {
@@ -1722,6 +1782,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push(c);
                     state = EnvExpState::NoInterpol
                 }
+                EnvExpState::ExpEnvNameWin => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
+                }
             },
             'a'..='z' | 'A'..='Z' | '_' | '0'..='9' => match state {
                 EnvExpState::InArg => res.push(c),
@@ -1746,6 +1810,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push('\\');
                     res.push(c);
                     state = EnvExpState::NoInterpol
+                }
+                EnvExpState::ExpEnvNameWin => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
                 }
             },
             '~' => {
@@ -1787,6 +1855,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                         res.push(c);
                         state = EnvExpState::NoInterpol
                     }
+                    EnvExpState::ExpEnvNameWin => {
+                        curr_env.push(c);
+                        state = EnvExpState::InEnvName
+                    }
                 }
             }
             '{' => match state {
@@ -1817,6 +1889,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push('\\');
                     res.push(c);
                     state = EnvExpState::NoInterpol
+                }
+                EnvExpState::ExpEnvNameWin => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
                 }
             },
             '}' => match state {
@@ -1859,6 +1935,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push(c);
                     state = EnvExpState::NoInterpol
                 }
+                EnvExpState::ExpEnvNameWin => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
+                }
             },
             '=' | ':' => match state {
                 EnvExpState::NoInterpol => res.push(c),
@@ -1895,6 +1975,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push('$');
                     res.push(c)
                 }
+                EnvExpState::ExpEnvNameWin => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
+                }
                 EnvExpState::InBracketEnvName => curr_env.push(c),
             },
             _ => match state {
@@ -1928,6 +2012,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     res.push(c);
                     state = EnvExpState::InArg
                 }
+                EnvExpState::ExpEnvNameWin => {
+                    curr_env.push(c);
+                    state = EnvExpState::InEnvName
+                }
                 EnvExpState::InBracketEnvName => curr_env.push(c),
             },
         }
@@ -1942,6 +2030,10 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
         }
         EnvExpState::ExpEnvName => {
             res.push('$');
+        }
+        EnvExpState::ExpEnvNameWin => {
+            res.push('%');
+            res.push('%')
         }
         EnvExpState::InEnvName => {
             if let Some(v) = child_env.get(&curr_env) {
