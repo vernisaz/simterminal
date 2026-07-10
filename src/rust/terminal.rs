@@ -116,6 +116,34 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
 
     send!("\n{}\n", &term.greeting(ver)); // {ver:?} {project} {session}");
 
+    // TODO potentially preserve original map wth original cases of entires
+    #[cfg(target_os = "windows")]
+    let mut child_env: HashMap<String, String> = env::vars()
+        .filter(|(k, _)| {
+            k != "GATEWAY_INTERFACE"
+                && k != "QUERY_STRING"
+                && k != "REMOTE_ADDR"
+                && k != "REMOTE_HOST"
+                && k != "REQUEST_METHOD"
+                && k != "SERVER_PROTOCOL"
+                && k != "SERVER_SOFTWARE"
+                && k != "PATH_INFO"
+                && k != "PATH_TRANSLATED"
+                && k != "SCRIPT_NAME"
+                && k != "REMOTE_IDENT"
+                && k != "SERVER_NAME"
+                && k != "SERVER_PORT"
+                && k != "CONTENT_LENGTH"
+                && k != "CONTENT_TYPE"
+                && k != "AUTH_TYPE"
+                && k != "REMOTE_USER"
+                && !k.starts_with("HTTP_")
+                && k != "_"
+                && k != "PWD"
+        })
+        .map(|(name, val)| (name.to_ascii_uppercase(), val))
+        .collect();
+    #[cfg(not(target_os = "windows"))]
     let mut child_env: HashMap<String, String> = env::vars()
         .filter(|(k, _)| {
             k != "GATEWAY_INTERFACE"
@@ -539,7 +567,10 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     continue;
                 }
                 if let Some((name, value)) = cmd[1].split_once('=') {
+                    #[cfg(not(target_os = "windows"))]
                     child_env.insert(name.to_string(), value.to_string());
+                    #[cfg(target_os = "windows")]
+                    child_env.insert(name.to_string().to_ascii_uppercase(), value.to_string());
                     send!("\u{000C}");
                 } else {
                     send!("The parameter has to be in the name=value form\u{000C}");
@@ -564,9 +595,18 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     2 => {
                         if let Some((name, value)) = cmd[1].split_once('=') {
                             if value.is_empty() {
+                                #[cfg(not(target_os = "windows"))]
                                 child_env.remove(name);
+                                #[cfg(target_os = "windows")]
+                                child_env.remove(&name.to_string().to_ascii_uppercase());
                             } else {
+                                #[cfg(not(target_os = "windows"))]
                                 child_env.insert(name.to_string(), value.to_string());
+                                #[cfg(target_os = "windows")]
+                                child_env.insert(
+                                    name.to_string().to_ascii_uppercase(),
+                                    value.to_string(),
+                                );
                             }
                         } else {
                             send!("The parameter has to be specified as: name=value");
@@ -1712,7 +1752,7 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                         res.push(c)
                     }
                     EnvExpState::InEnvName => {
-                        if let Some(v) = child_env.get(&curr_env) {
+                        if let Some(v) = child_env.get(&curr_env.to_ascii_uppercase()) {
                             res.push_str(v)
                         } else if curr_env == "time" {
                             let now = SystemTime::now();
