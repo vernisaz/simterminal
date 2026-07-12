@@ -392,8 +392,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                             file_name = file_name.color_num(27)
                         } else if let Some(ext) = path.extension() {
                             let ext = ext.to_ascii_lowercase();
-                            let ext = ext.to_str().unwrap();
-                            match ext {
+                            match ext.to_str().unwrap() {
                                 "exe" | "com" | "bat" | "msi" => {
                                     file_name = file_name.bright().green()
                                 }
