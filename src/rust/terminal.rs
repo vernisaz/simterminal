@@ -2173,7 +2173,7 @@ fn extend_name(arg: &impl AsRef<str>, cwd: &Path, exe: bool) -> String {
     //eprintln!("dir: {dir} -> {} for {part_name}", files.len());
     match files.len() {
         0 => format!("{dir}{MAIN_SEPARATOR_STR}{part_name}"),
-        1 => format!("{dir}{MAIN_SEPARATOR_STR}{}", &files[0]),
+        1 => format!("{dir}{MAIN_SEPARATOR_STR}{}", files[0]),
         _ => format!(
             "{dir}{MAIN_SEPARATOR_STR}{}\x07",
             longest_common_prefix(files)
