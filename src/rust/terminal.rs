@@ -1517,6 +1517,8 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
                     CmdState::StartArg => match c {
                         '|' | '<' | '>' | '&' => {
                             if alias_susp {
+                                #[cfg(target_os = "windows")]
+                                alias.make_ascii_uppercase();
                                 if !alias.is_empty()
                                     && let Some(alias_val) = aliases.get(&alias)
                                 {
@@ -1533,6 +1535,8 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
                     },
                     CmdState::InArg => {
                         state = CmdState::StartArg;
+                        #[cfg(target_os = "windows")]
+                        alias.make_ascii_uppercase();
                         if alias_susp
                             && !alias.is_empty()
                             && let Some(alias_val) = aliases.get(&alias)
@@ -1672,6 +1676,8 @@ fn expand_alias<'a>(cmd_line: &'a str, aliases: &HashMap<String, String>) -> Cow
             }
         }
     }
+    #[cfg(target_os = "windows")]
+    alias.make_ascii_uppercase();
     if state == CmdState::InArg
         && alias_susp
         && !alias.is_empty()
