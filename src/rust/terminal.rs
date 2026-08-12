@@ -30,6 +30,7 @@ use std::{
     fs::{self, Metadata, OpenOptions},
     io::{self, BufRead, BufReader, ErrorKind, Read, Stdin, Write, stdout},
     ops::Not,
+    ops::Range,
     path::{Component, MAIN_SEPARATOR_STR, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
@@ -2354,8 +2355,7 @@ enum Op {
 #[derive(Debug, Default)]
 struct DeferData {
     src: PathBuf,
-    src_before: String,
-    src_after: String,
+    name_range: Range<usize>,
     src_wild: Vec<String>,
     dst: Option<PathBuf>,
     dst_before: Option<String>,
@@ -2419,8 +2419,7 @@ impl DeferData {
         };
         DeferData {
             src: dir,
-            src_before,
-            src_after,
+            name_range: src_before.len()..src_after.len(),
             src_wild,
             ..Default::default()
         }
@@ -2465,7 +2464,7 @@ impl DeferData {
                 if let Some(dst_before) = &self.dst_before
                     && let Some(dst_after) = &self.dst_after
                 {
-                    format! {"{dst_before}{}{dst_after}", &name[self.src_before.len()..name.len() - self.src_after.len()]}
+                    format! {"{dst_before}{}{dst_after}", &name[self.name_range.start..name.len() - self.name_range.end]}
                 } else if dst.is_dir() {
                     String::new()
                 } else {
