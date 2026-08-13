@@ -344,7 +344,8 @@ function ws_term_connect() {
             } else {
                 lineStr = htmlEncode(chunk)
             }
-            term_frag.innerHTML = processURL(lineStr)
+            const urlExp = processURL(lineStr)
+            term_frag.innerHTML = urlExp?urlExp:lineStr
         }
         //cons.appendChild(term_frag)
         appendContent(cons,term_frag)
