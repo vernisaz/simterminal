@@ -70,7 +70,9 @@ pub trait Terminal {
         term_loop(self)
     }
 }
-
+#[cfg(target_os = "windows")]
+#[path = "../../../simincmod/cmp_str.rs"]
+mod winops;
 pub trait IsExecutable {
     /// Returns `true` if there is a file at the given path and it is
     /// executable. Returns `false` otherwise.
@@ -2376,13 +2378,8 @@ impl DeferData {
         //eprintln!("{from:?} - {from_name:?} - {dir:?}");
         let (src_wild, src_before, src_after) = match split_at_star(&from_name) {
             None => (vec![from_name], String::new(), String::new()),
-            #[allow(unused_mut)]
-            Some((mut before, mut after)) => {
-                #[cfg(target_os = "windows")]
-                {
-                    before.make_ascii_uppercase();
-                    after.make_ascii_uppercase();
-                }
+            Some((before, after)) => {
+                let mask_len = before.len() + after.len();
                 (
                     dir.read_dir()
                         .into_iter()
@@ -2390,15 +2387,17 @@ impl DeferData {
                         .filter_map(|r| {
                             r.ok().and_then(|e| {
                                 let s = e.file_name().display().to_string();
-                                if s.len() >= before.len() + after.len() {
+                                if s.len() >= mask_len {
                                     #[cfg(target_os = "windows")]
+                                    if winops::eq_str_ascii_ignorecase(&before, &s[0..before.len()])
+                                        && winops::eq_ascii_ignorecase(
+                                            after.as_bytes(),
+                                            &s.as_bytes()[s.len() - after.len()..],
+                                        )
                                     {
-                                        let su = s.to_ascii_uppercase();
-                                        if su.starts_with(&before) && su.ends_with(&after) {
-                                            Some(s) // [before.len()..s.len() - after.len()]
-                                        } else {
-                                            None
-                                        }
+                                        Some(s)
+                                    } else {
+                                        None
                                     }
                                     #[cfg(not(target_os = "windows"))]
                                     if s.starts_with(&before) && s.ends_with(&after) {
