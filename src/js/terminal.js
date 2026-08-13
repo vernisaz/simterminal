@@ -338,13 +338,13 @@ function ws_term_connect() {
             //console.log(ansi_html) // debug
             term_frag.innerHTML = ansi_html
         } else {
-            var lineStr ;
+            var lineStr;
             if (typeof extendURL === 'function') {
                 lineStr = extendURL(chunk);
             } else {
                 lineStr = htmlEncode(chunk)
             }
-            term_frag.innerHTML = lineStr
+            term_frag.innerHTML = processURL(lineStr)
         }
         //cons.appendChild(term_frag)
         appendContent(cons,term_frag)
