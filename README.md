@@ -142,7 +142,7 @@ returning a string with embedded URLs (if applied), for example:
 ```JavaScript
 var fileNameReg
 if (WIN_SERVER)
-    fileNameReg =  /(?<path>(\w:\\)?((\w+|\.\.?)\\)*)(?<file>\w+\.(rs|swift|java)):(?<line>\d+):(?<col>\d+|\s)/gm
+    fileNameReg =  /(?<path>(\w:\\)?((\w+|\.\.?)\\)*)(?<file>\w+\.(rs|swift|java)):(?<line>\d+):(?<col>\d+|\s)/igm
 else
     fileNameReg = /(?<path>\/?((\w+|\.\.?)\/)*)(?<file>\w+\.(rs|swift|java)):(?<line>\d+):(?<col>\d+|\s)/gm
 function extendURL(lineStr) {
@@ -176,6 +176,7 @@ The three dependency crates are:
 - The [Simple Time](https://github.com/vernisaz/simtime)
 - The [SimWeb](https://github.com/vernisaz/simweb)
 - The [Simple Color](https://github.com/vernisaz/simcolor)
+- The [Simple include modules](https://github.com/vernisaz/simincmod) - it isn't a crate, just some include files
 - And the [Common building scripts](https://github.com/vernisaz/simscript) for building them
 
 ## Where it is used
@@ -183,4 +184,4 @@ The three dependency crates are:
 - [Rust Development Studio](https://github.com/vernisaz/rust_dev_studio) multipurpose web IDE
 
 ## Known problem
-The terminal can't be dismissed if it starts an app which continues running. Use `kill` for the terminal to terminate it.
+The terminal can't be dismissed if it started an app which continues running. Use `kill` for the terminal to terminate it.
