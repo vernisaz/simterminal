@@ -507,20 +507,31 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 }
             }
             "echo" if cfg!(windows) && out_file.is_empty() => {
-                if cmd.len() == 2 {
-                    if !out_file.is_empty()
-                    /*None*/
-                    {
-                        let mut file = PathBuf::from(&out_file);
-                        if !file.has_root() {
-                            file = cwd.join(file);
+                let mut first = true;
+                if !out_file.is_empty()
+                /*None*/
+                {
+                    let mut file = PathBuf::from(&out_file);
+                    if !file.has_root() {
+                        file = cwd.join(file);
+                    }
+                    for arg in &cmd[1..] {
+                        if !first {
+                            fs::write(&file, " ")?;
                         }
-                        fs::write(file, &cmd[1])?;
-                        send!("\u{000C}");
-                    } else {
-                        send!("{}\u{000C}", cmd[1]);
+                        fs::write(&file, arg)?;
+                        first = false;
+                    }
+                } else {
+                    for arg in &cmd[1..] {
+                        if !first {
+                            send!(" ");
+                        }
+                        send!("{}", arg);
+                        first = false;
                     }
                 }
+                send!("\u{000C}");
             }
             "md" | "mkdir" if cfg!(windows) => {
                 if cmd.len() == 1 {
