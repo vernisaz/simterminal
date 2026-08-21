@@ -2600,10 +2600,18 @@ fn copy_directory(
 fn emulate_unix_cmd(cmd: &[String], cwd: &Path) -> io::Result<Option<Vec<u8>>> {
     match cmd[0].to_ascii_lowercase().as_str() {
         "echo" => {
-            if cmd.len() != 2 {
-                return Err(io::Error::other("Wrong number of 'echo' arguments"));
+            let mut reserve = 0;
+            for arg in &cmd[1..] {
+                reserve += arg.len()
             }
-            Ok(Some(cmd[1].as_bytes().to_vec()))
+            let mut res = String::with_capacity(reserve);
+            for arg in &cmd[1..] {
+                if !res.is_empty() {
+                    res.push(' ');
+                }
+                res.push_str(arg);
+            }
+            Ok(Some(res.as_bytes().to_vec()))
         }
         "type" => {
             if cmd.len() != 2 {
