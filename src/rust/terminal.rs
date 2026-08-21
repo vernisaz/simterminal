@@ -335,18 +335,13 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                     } else {
                         res.push('-')
                     }
-                    let (h, pm) = match h {
-                        0 => (12, 'A'),
-                        h @ 1..12 => (h, 'A'),
-                        12 => (12, 'P'),
-                        h @ 13..24 => (h - 12, 'P'),
-                        _ => unreachable!(),
-                    };
+
+                    let (h, pm) = simtime::convert_24_to_12(h).unwrap();
                     let date = &format!("{m:>2}/{d}/{y:4}");
                     res.push_str(&format!(
                         "{:8}{date:>10}  {h:>2}:{mm:02} {}M {:>14} ",
                         ' ',
-                        pm,
+                        if pm { 'P' } else { 'A' },
                         EntryLen(metadata)
                     ));
                 };
