@@ -1227,8 +1227,23 @@ fn parse_cmd(
                     CmdState::InArg => {
                         state = CmdState::StartArg;
                         if arg_segment.is_empty().not() {
-                            curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
-                            // recusively call parse_cmd to process curr_comp and then extend the current command line
+                            //curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
+                            //eprintln!("arg:{arg_segment}->{}", interpolate_env(&arg_segment, child_env));
+                            let sub_cmd = parse_cmd(
+                                &interpolate_env(&arg_segment, child_env),
+                                child_env,
+                                cwd,
+                            );
+                            let mut sub_args = sub_cmd.0.iter();
+                            if let Some(arg) = sub_args.next() {
+                                curr_comp.push_str(arg);
+                                if let Some(arg) = sub_args.next() {
+                                    res.push(curr_comp.clone());
+                                    res.push(arg.to_owned());
+                                    res.extend(sub_args.map(String::to_string));
+                                    curr_comp.clear()
+                                }
+                            }
                         }
                         match red_state {
                             RedirectSate::NoRedirect => {
@@ -1449,14 +1464,33 @@ fn parse_cmd(
     }
     match state {
         CmdState::InArg | CmdState::QuotedArg | CmdState::DblQuotedArg => {
-            if state == CmdState::DblQuotedArg || state == CmdState::InArg {
+            if state == CmdState::DblQuotedArg {
                 curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
+            } else if state == CmdState::InArg && arg_segment.is_empty().not() {
+                let inter_arg = interpolate_env(&arg_segment, child_env);
+                if inter_arg != arg_segment {
+                    let sub_cmd = parse_cmd(&inter_arg, child_env, cwd);
+                    let mut sub_args = sub_cmd.0.iter();
+                    if let Some(arg) = sub_args.next() {
+                        //eprintln!("next arg:{arg}");
+                        curr_comp.push_str(arg);
+                        if let Some(arg) = sub_args.next() {
+                            //eprintln!("more arg:{arg}");
+                            res.push(curr_comp.clone());
+                            res.push(arg.to_owned());
+                            res.extend(sub_args.map(String::to_string));
+                            curr_comp.clear()
+                        }
+                    }
+                } else {
+                    curr_comp.push_str(&arg_segment);
+                }
             }
             match red_state {
                 RedirectSate::NoRedirect => {
                     if was_blob {
                         expand_wildcard_in_arg(cwd, curr_comp, &mut res)
-                    } else {
+                    } else if !curr_comp.is_empty() {
                         res.push(curr_comp);
                     }
                 }
@@ -1471,6 +1505,7 @@ fn parse_cmd(
         CmdState::StartArg => (),
         _ => todo!(), // shouldn't happen ever
     }
+    //eprintln!("arguments:{res:?}");
     (res, pipe_res, input_file, output_file, append, asynch)
 }
 
@@ -1731,6 +1766,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                         res.push(c)
                     }
                     EnvExpState::InEnvName => {
+                        #[cfg(target_os = "windows")]
+                        curr_env.make_ascii_uppercase();
                         if let Some(v) = child_env.get(&curr_env) {
                             res.push_str(v)
                         } else if curr_env == "0" {
@@ -1819,6 +1856,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
+                    #[cfg(target_os = "windows")]
+                    curr_env.make_ascii_uppercase();
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -1886,6 +1925,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                         state = EnvExpState::InArg
                     }
                     EnvExpState::InEnvName => {
+                        #[cfg(target_os = "windows")]
+                        curr_env.make_ascii_uppercase();
                         if let Some(v) = child_env.get(&curr_env) {
                             res.push_str(v)
                         } else if curr_env == "0" {
@@ -1928,6 +1969,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
+                    #[cfg(target_os = "windows")]
+                    curr_env.make_ascii_uppercase();
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -1967,6 +2010,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InEnvName => {
+                    #[cfg(target_os = "windows")]
+                    curr_env.make_ascii_uppercase();
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -1977,6 +2022,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::InArg
                 }
                 EnvExpState::InBracketEnvName => {
+                    #[cfg(target_os = "windows")]
+                    curr_env.make_ascii_uppercase();
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -2016,6 +2063,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::NoInterpol
                 }
                 EnvExpState::InEnvName => {
+                    #[cfg(target_os = "windows")]
+                    curr_env.make_ascii_uppercase();
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -2053,6 +2102,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
                     state = EnvExpState::NoInterpol
                 }
                 EnvExpState::InEnvName => {
+                    #[cfg(target_os = "windows")]
+                    curr_env.make_ascii_uppercase();
                     if let Some(v) = child_env.get(&curr_env) {
                         res.push_str(v)
                     } else if curr_env == "0" {
@@ -2091,6 +2142,8 @@ fn interpolate_env(s: &str, child_env: &HashMap<String, String>) -> String {
             res.push('%')
         }
         EnvExpState::InEnvName => {
+            #[cfg(target_os = "windows")]
+            curr_env.make_ascii_uppercase();
             if let Some(v) = child_env.get(&curr_env) {
                 res.push_str(v)
             } else if curr_env == "0" {
