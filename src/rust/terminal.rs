@@ -1228,6 +1228,7 @@ fn parse_cmd(
                         state = CmdState::StartArg;
                         if arg_segment.is_empty().not() {
                             curr_comp.push_str(&interpolate_env(&arg_segment, child_env))
+                            // recusively call parse_cmd to process curr_comp and then extend the current command line
                         }
                         match red_state {
                             RedirectSate::NoRedirect => {
