@@ -597,7 +597,7 @@ fn term_loop(term: &mut (impl Terminal + ?Sized)) -> Result<(), Box<dyn Error>> 
                 match cmd.len() {
                     1 => {
                         for (key, value) in &child_env {
-                            send!("{}={}\n", key, value);
+                            send!("{}{}{}\n", key, "=".blue().bright(), value);
                         }
                     }
                     2 => {
