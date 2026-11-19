@@ -21,6 +21,7 @@ function clearColorAttributes() {
     /* */
     bold = false
     under = false
+
     revs = false
     strike = false
     italic = false
@@ -354,7 +355,9 @@ function ws_term_connect() {
             showPrompt(cons)
             //cons.appendChild(prompt)
         }
-        cons.scrollIntoView({ behavior: "smooth", block: "end" })
+        setTimer(() => {
+            cons.scrollIntoView({ behavior: "smooth", block: "end" })
+        }, 500);
      }
      termWskt.onclose = (event) => {
          if (notifRecon < 0)
@@ -611,4 +614,17 @@ function term_beep() {
     },
     duration
   );
+}
+
+let timerId = null;
+
+function setTimer(callback, delay) {
+    if (timerId !== null) {
+        clearTimeout(timerId);
+    }
+
+    timerId = setTimeout(() => {
+        timerId = null;
+        callback();
+    }, delay);
 }
